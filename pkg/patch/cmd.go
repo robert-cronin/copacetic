@@ -16,33 +16,43 @@ import (
 )
 
 type patchArgs struct {
-	appImage      string
-	reportFile    string
-	patchedTag    string
-	suffix        string
-	workingFolder string
-	timeout       time.Duration
-	scanner       string
-	ignoreError   bool
-	format        string
-	output        string
-	bkOpts        buildkit.Opts
+	appImage              string
+	reportFile            string
+	reportDir             string
+	missingReportBehavior string
+	patchedTag            string
+	suffix                string
+	workingFolder         string
+	timeout               time.Duration
+	scanner               string
+	ignoreError           bool
+	format                string
+	output                string
+	bkOpts                buildkit.Opts
 }
 
 func NewPatchCmd() *cobra.Command {
 	ua := patchArgs{}
 	patchCmd := &cobra.Command{
 		Use:     "patch",
-		Short:   "Patch container images with upgrade packages specified by a vulnerability report",
-		Example: "copa patch -i images/python:3.7-alpine -r trivy.json -t 3.7-alpine-patched",
-		RunE: func(_ *cobra.Command, _ []string) error {
+		Short:   "Patch images with vulnerability fixes",
+		Example: "copa patch -i my-image:tag -r report.json",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := context.Background()
 			bkopts := buildkit.Opts{
 				Addr:       ua.bkOpts.Addr,
 				CACertPath: ua.bkOpts.CACertPath,
 				CertPath:   ua.bkOpts.CertPath,
 				KeyPath:    ua.bkOpts.KeyPath,
 			}
-			return Patch(context.Background(),
+
+			// Check if we're doing multi-architecture patching
+			if ua.reportDir != "" {
+				return patchMultiArchImage(ua.appImage, ua.reportDir, ua.missingReportBehavior)
+			}
+
+			// Otherwise, proceed with single-arch patching
+			return Patch(ctx,
 				ua.timeout,
 				ua.appImage,
 				ua.reportFile,
@@ -59,6 +69,8 @@ func NewPatchCmd() *cobra.Command {
 	flags := patchCmd.Flags()
 	flags.StringVarP(&ua.appImage, "image", "i", "", "Application image name and tag to patch")
 	flags.StringVarP(&ua.reportFile, "report", "r", "", "Vulnerability report file path")
+	flags.StringVar(&ua.reportDir, "report-dir", "", "Directory containing vulnerability reports for multi-architecture images")
+	flags.StringVar(&ua.missingReportBehavior, "missing-report", "fail", "Behavior when report is missing for a platform [skip|warn|fail]")
 	flags.StringVarP(&ua.patchedTag, "tag", "t", "", "Tag for the patched image")
 	flags.StringVarP(&ua.suffix, "tag-suffix", "", "patched", "Suffix for the patched image (if no explicit --tag provided)")
 	flags.StringVarP(&ua.workingFolder, "working-folder", "w", "", "Working folder, defaults to system temp folder")

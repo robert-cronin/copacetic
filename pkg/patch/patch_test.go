@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/distribution/reference"
+	"github.com/project-copacetic/copacetic/pkg/types"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
@@ -492,4 +493,30 @@ func TestResolvePatchedTag(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandleMissingReport(t *testing.T) {
+	testPlatform := types.Platform{
+		OS:   "linux",
+		Arch: "amd64",
+	}
+
+	// Test skip behavior
+	err := handleMissingReport(testPlatform, "skip")
+	assert.NoError(t, err, "skip should not return an error")
+
+	// Test warn behavior
+	err = handleMissingReport(testPlatform, "warn")
+	assert.NoError(t, err, "warn should not return an error")
+
+	// Test fail behavior
+	err = handleMissingReport(testPlatform, "fail")
+	assert.Error(t, err, "fail should return an error")
+	assert.Contains(t, err.Error(), "no vulnerability data for platform")
+	assert.Contains(t, err.Error(), "linux/amd64")
+
+	// Test invalid behavior
+	err = handleMissingReport(testPlatform, "invalid")
+	assert.Error(t, err, "invalid behavior should return an error")
+	assert.Contains(t, err.Error(), "invalid missing-report behavior")
 }

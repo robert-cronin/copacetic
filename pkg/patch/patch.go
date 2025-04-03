@@ -27,8 +27,10 @@ import (
 	"github.com/moby/buildkit/session/auth/authprovider"
 	"github.com/moby/buildkit/util/progress/progressui"
 	"github.com/project-copacetic/copacetic/pkg/buildkit"
+	"github.com/project-copacetic/copacetic/pkg/manifest"
 	"github.com/project-copacetic/copacetic/pkg/pkgmgr"
 	"github.com/project-copacetic/copacetic/pkg/report"
+	"github.com/project-copacetic/copacetic/pkg/types"
 	"github.com/project-copacetic/copacetic/pkg/types/unversioned"
 	"github.com/project-copacetic/copacetic/pkg/utils"
 	"github.com/project-copacetic/copacetic/pkg/vex"
@@ -432,4 +434,65 @@ func getRepoNameWithDigest(patchedImageName, imageDigest string) string {
 	}
 	nameWithDigest := fmt.Sprintf("%s@%s", last, imageDigest)
 	return nameWithDigest
+}
+
+// handleMissingReport determines what to do when a report is missing for a platform
+func handleMissingReport(platform types.Platform, missingReportBehavior string) error {
+	switch missingReportBehavior {
+	case "skip":
+		log.Printf("Skipping platform %s/%s due to missing report", platform.OS, platform.Arch)
+		return nil
+	case "warn":
+		log.Printf("WARNING: No vulnerability data for platform %s/%s", platform.OS, platform.Arch)
+		return nil
+	case "fail":
+		return fmt.Errorf("no vulnerability data for platform: %s/%s", platform.OS, platform.Arch)
+	default:
+		return fmt.Errorf("invalid missing-report behavior: %s", missingReportBehavior)
+	}
+}
+
+// In the main patching function
+func patchMultiArchImage(imageRef, reportDir, missingReportBehavior string) error {
+	// Discover platforms and matching reports
+	platforms, err := manifest.DiscoverPlatforms(imageRef, reportDir)
+	if err != nil {
+		return err
+	}
+
+	// Check if we found any patchable platforms
+	if len(platforms) == 0 {
+		return fmt.Errorf("no patchable platforms found for image %s", imageRef)
+	}
+
+	// Get all manifests from the image
+	allPlatforms, err := manifest.GetAllPlatforms(imageRef)
+	if err != nil {
+		return err
+	}
+
+	// Process each platform
+	for _, platform := range allPlatforms {
+		// Check if this platform has a corresponding report
+		reportMissing := true
+		for _, patchablePlatform := range platforms {
+			if platform.OS == patchablePlatform.OS && platform.Arch == patchablePlatform.Arch {
+				reportMissing = false
+				break
+			}
+		}
+
+		// Handle missing report according to user preference
+		if reportMissing {
+			if err := handleMissingReport(platform, missingReportBehavior); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// Otherwise, proceed with patching for this platform
+		// ...patch code here...
+	}
+
+	return nil
 }
