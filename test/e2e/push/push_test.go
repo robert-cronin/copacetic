@@ -16,23 +16,21 @@ func TestPushToRegistry(t *testing.T) {
 	}
 
 	uniqueTag := fmt.Sprintf("run-%s", runID)
+	patchedTag := fmt.Sprintf("%s-patched", uniqueTag)
 	baseImage := "docker.io/library/nginx:1.21.6"
 	ghcrImageBase := fmt.Sprintf("%s:%s", ghcrBasePath, uniqueTag)
-	ghcrImagePatched := fmt.Sprintf("%s-patched", ghcrImageBase) // Adds '-patched' before the tag
+	ghcrImagePatched := fmt.Sprintf("%s:%s", ghcrBasePath, patchedTag)
 
 	t.Logf("Base GHCR Image: %s", ghcrImageBase)
 	t.Logf("Patched GHCR Image: %s", ghcrImagePatched)
 
-	// Push base image to GHCR using oras
-	// Assumes authentication is handled externally (by docker/login-action in CI)
+	// push base image to ghcr using oras
 	t.Logf("Copying base image %s to %s", baseImage, ghcrImageBase)
-	pushCmd := exec.Command("oras", "cp", baseImage, ghcrImageBase)
-	out, err := pushCmd.CombinedOutput()
+	cpCmd := exec.Command("oras", "cp", baseImage, ghcrImageBase)
+	out, err := cpCmd.CombinedOutput()
 	require.NoErrorf(t, err, "oras cp to ghcr failed:\n%s", string(out))
 
-	// create a temp directory for report file
 	cwd, err := os.Getwd()
-	require.NoError(t, err, "failed to get current working directory")
 	reportFile := filepath.Join(cwd, "testdata", "report.json")
 
 	// run copa patch with push flag using BuildKit address for the source image
@@ -41,24 +39,18 @@ func TestPushToRegistry(t *testing.T) {
 		"patch",
 		"--image", ghcrImageBase,
 		"--report", reportFile,
-		"--push",
-		"--tag", "patched", // copa will push to buildkitRegistryHost/nginx:patched
+		"--push=true",
+		"--tag", patchedTag,
 		"-a="+buildkitAddr,
 	)
 
 	output, err := patchCmd.CombinedOutput()
-	// Use NoErrorf for better output formatting on failure
 	require.NoErrorf(t, err, "failed to patch and push image: %s", string(output))
+	t.Logf("Patch output: %s\n", string(output))
 
-	// // Check it exists in GHCR by pulling it
-	// // Ensure local docker is logged in if running locally, CI handles this
-	// t.Logf("Verifying patched image by pulling %s", ghcrImagePatched)
-	// pullCmd := exec.Command("docker", "pull", ghcrImagePatched)
-	// output, err = pullCmd.CombinedOutput()
-	// require.NoErrorf(t, err, "failed to pull patched image from ghcr: %s", string(output))
-
-	// // Clean up local docker cache (optional, doesn't delete from GHCR)
-	// removeLocalImage(t, ghcrImageBase)
-	// removeLocalImage(t, ghcrImagePatched)
-
+	// check it exists in ghcr by pulling it
+	t.Logf("Verifying patched image by pulling %s", ghcrImagePatched)
+	pullCmd := exec.Command("docker", "pull", ghcrImagePatched)
+	output, err = pullCmd.CombinedOutput()
+	require.NoErrorf(t, err, "failed to pull patched image from ghcr: %s", string(output))
 }

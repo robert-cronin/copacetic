@@ -16,7 +16,7 @@ var (
 func TestMain(m *testing.M) {
 	flag.StringVar(&buildkitAddr, "addr", "buildx://", "buildkit address to pass through to copa binary")
 	flag.StringVar(&copaPath, "copa", "./copa", "path to copa binary")
-	flag.StringVar(&ghcrBasePath, "ghcr-base-path", "ghcr.io/robert-cronin/copacetic", "base path for ghcr")
+	flag.StringVar(&ghcrBasePath, "ghcr-base-path", "ghcr.io/robert-cronin/copacetic/e2e-push-test", "base path for ghcr")
 	flag.StringVar(&runID, "run-id", "", "run ID for the test")
 	flag.Parse()
 
