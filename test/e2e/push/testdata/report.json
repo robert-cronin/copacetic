@@ -1,0 +1,27 @@
+{
+  "SchemaVersion": 2,
+  "ArtifactName": "docker.io/library/nginx:1.21.6",
+  "ArtifactType": "container_image",
+  "Metadata": {
+    "OS": {
+      "Family": "debian",
+      "Name": "11.3"
+    }
+  },
+  "Results": [
+    {
+      "Target": "docker.io/library/nginx:1.21.6 (debian 11.3)",
+      "Class": "os-pkgs",
+      "Type": "debian",
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2024-28085",
+          "PkgName": "bsdutils",
+          "InstalledVersion": "1:2.36.1-8+deb11u1",
+          "FixedVersion": "2.36.1-8+deb11u2",
+          "Severity": "MEDIUM"
+        }
+      ]
+    }
+  ]
+}
