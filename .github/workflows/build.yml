@@ -24,7 +24,7 @@ on:
 
 env:
   TRIVY_VERSION: 0.59.1
-  BUILDKIT_VERSION: 0.19.0
+  BUILDKIT_VERSION: 0.21.0
   TRIVY_DISABLE_VEX_NOTICE: "true"
 
 permissions:

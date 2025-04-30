@@ -165,14 +165,15 @@ func patchWithContext(ctx context.Context, ch chan error, image, reportFile, rep
 	} else {
 		log.Warnf("unable to determine exporter type, defaulting to %s", exporterType)
 	}
-
-	isNonDockerBackend := strings.HasPrefix(bkOpts.Addr, "buildx://") || strings.HasPrefix(bkOpts.Addr, "tcp://")
-	if exporterType == client.ExporterOCI && isNonDockerBackend {
-		log.Infof("Intended exporter type is OCI and backend is non-Docker (%s). Overriding exporter to Docker for compatibility.", bkOpts.Addr)
-		exporterType = client.ExporterDocker
-	} else {
-		log.Debugf("Using originally intended exporter type %s for backend %s", exporterType, bkOpts.Addr)
-	}
+	
+	log.Infof("buildkit address: %s", bkOpts.Addr)
+	// isNonDockerBackend := strings.HasPrefix(bkOpts.Addr, "tcp://")
+	// if exporterType == client.ExporterOCI && isNonDockerBackend {
+	// 	log.Infof("Intended exporter type is OCI and backend is non-Docker (%s). Overriding exporter to Docker for compatibility.", bkOpts.Addr)
+	// 	exporterType = client.ExporterDocker
+	// } else {
+	// 	log.Debugf("Using originally intended exporter type %s for backend %s", exporterType, bkOpts.Addr)
+	// }
 
 	log.Debugf("using exporter type %s", exporterType)
 
@@ -199,12 +200,17 @@ func patchWithContext(ctx context.Context, ch chan error, image, reportFile, rep
 			},
 		}
 	} else {
+		ociMediaTypes := exporterType == client.ExporterOCI
+		attrs := map[string]string{
+			"name": patchedImageName,
+		}
+		if ociMediaTypes {
+			attrs["oci-mediatypes"] = "true"
+		}
 		solveOpt.Exports = []client.ExportEntry{
 			{
-				Type: exporterType,
-				Attrs: map[string]string{
-					"name": patchedImageName,
-				},
+				Type: client.ExporterDocker,
+				Attrs: attrs,
 				Output: func(_ map[string]string) (io.WriteCloser, error) {
 					return pipeW, nil
 				},
