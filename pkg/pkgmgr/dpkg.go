@@ -512,6 +512,12 @@ func (dm *dpkgManager) unpackAndMergeUpdates(ctx context.Context, updates unvers
 		packages="%s"
 		apt-get update
 		apt-get download --no-install-recommends $packages
+
+		# dpkg complains if these dont exist
+		mkdir -p /tmp/debian-rootfs/var/lib/dpkg/updates/
+		mkdir -p /tmp/debian-rootfs/var/lib/dpkg/info/
+		touch /tmp/debian-rootfs/var/lib/dpkg/info/format-new
+		
 		dpkg --root=/tmp/debian-rootfs --admindir=/tmp/debian-rootfs/var/lib/dpkg --force-all --force-confold --install *.deb
 		dpkg --root=/tmp/debian-rootfs --configure -a
 
@@ -591,6 +597,12 @@ $line"
 			packages=$(cat /var/cache/apt/archives/packages.txt)
 			apt-get update
 			apt-get download --no-install-recommends $packages
+
+			# dpkg complains if these dont exist
+			mkdir -p /tmp/debian-rootfs/var/lib/dpkg/updates/
+			mkdir -p /tmp/debian-rootfs/var/lib/dpkg/info/
+			touch /tmp/debian-rootfs/var/lib/dpkg/info/format-new
+
 			dpkg --root=/tmp/debian-rootfs --admindir=/tmp/debian-rootfs/var/lib/dpkg --force-all --force-confold --install *.deb
 			dpkg --root=/tmp/debian-rootfs --configure -a
 
