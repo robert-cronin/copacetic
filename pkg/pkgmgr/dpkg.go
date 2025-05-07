@@ -454,7 +454,8 @@ func (dm *dpkgManager) unpackAndMergeUpdates(ctx context.Context, updates unvers
 
 							if [ -z "$update_packages" ]; then
 								echo "No packages to update"
-								exit 1
+								# dont exit with an error
+								# if packages.txt is empty, subsequent steps should handle it gracefully
 							fi
 
 							mkdir /var/cache/apt/archives
@@ -512,14 +513,8 @@ func (dm *dpkgManager) unpackAndMergeUpdates(ctx context.Context, updates unvers
 		packages="%s"
 		apt-get update
 		apt-get download --no-install-recommends $packages
-
-		# dpkg complains if these dont exist
-		mkdir -p /tmp/debian-rootfs/var/lib/dpkg/updates/
-		mkdir -p /tmp/debian-rootfs/var/lib/dpkg/info/
-		touch /tmp/debian-rootfs/var/lib/dpkg/info/format-new
-		
-		dpkg --root=/tmp/debian-rootfs --admindir=/tmp/debian-rootfs/var/lib/dpkg --force-all --force-confold --install *.deb
-		dpkg --root=/tmp/debian-rootfs --configure -a
+		dpkg --admindir=/tmp/debian-rootfs/var/lib/dpkg --force-all --force-confold --install *.deb
+		dpkg --configure -a
 
 		# create new status.d with contents from status file after updates
 		STATUS_FILE="/tmp/debian-rootfs/var/lib/dpkg/status"
@@ -597,12 +592,6 @@ $line"
 			packages=$(cat /var/cache/apt/archives/packages.txt)
 			apt-get update
 			apt-get download --no-install-recommends $packages
-
-			# dpkg complains if these dont exist
-			mkdir -p /tmp/debian-rootfs/var/lib/dpkg/updates/
-			mkdir -p /tmp/debian-rootfs/var/lib/dpkg/info/
-			touch /tmp/debian-rootfs/var/lib/dpkg/info/format-new
-
 			dpkg --root=/tmp/debian-rootfs --admindir=/tmp/debian-rootfs/var/lib/dpkg --force-all --force-confold --install *.deb
 			dpkg --root=/tmp/debian-rootfs --configure -a
 
@@ -682,7 +671,8 @@ $line"
 		llb.AddEnv("IGNORE_ERRORS", errorValidation),
 		buildkit.Sh(downloadCmd),
 		llb.WithProxy(utils.GetProxy()),
-	).AddMount("/tmp/debian-rootfs", dm.config.ImageState)
+		llb.AddMount("/tmp/debian-rootfs", dm.config.ImageState),
+	).Dir("/tmp/debian-rootfs")
 
 	resultBytes, err := buildkit.ExtractFileFromState(ctx, dm.config.Client, &downloaded, "/manifest")
 	if err != nil {
