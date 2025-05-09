@@ -20,9 +20,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-//go:embed scripts/apt_get_download.sh
-var aptGetDownloadScript string
-
 //go:embed scripts/apt_get_download_all_pkgs.sh
 var aptGetDownloadAllScript string
 
@@ -452,6 +449,8 @@ func (dm *dpkgManager) unpackAndMergeUpdates(ctx context.Context, updates unvers
 			llb.AddEnv("PACKAGES_PRESENT", string(jsonPackageData)),
 			llb.Args([]string{
 				`bash`, `-c`, `
+							set -ex
+
 							json_str=$PACKAGES_PRESENT
 							update_packages=""
 
@@ -470,44 +469,15 @@ func (dm *dpkgManager) unpackAndMergeUpdates(ctx context.Context, updates unvers
 								exit 1
 							fi
 
-							mkdir /var/cache/apt/archives
-							cd /var/cache/apt/archives
-							echo "$update_packages" > packages.txt
+							# make a temporary file to store the packages
+							mkdir /tmp/packages
+							echo "$update_packages" > /tmp/packages/packages.txt
 					`,
 			})).Root()
 	}
 
-	updated = updated.Run(buildkit.Sh("mkdir -p /tmp/debian-rootfs/var/lib/dpkg")).Root()
-
-	// Replace status file in tooling image with new status file with relevant pacakges from image to be patched.
-	// Regenerate /var/lib/dpkg/info files based on relevant pacakges from image to be patched.
-	dpkgdb := updated.Run(
-		llb.AddEnv("PACKAGES_PRESENT_ALL", string(jsonPackageData)),
-		llb.AddEnv("STATUS_FILE", dm.tempStatusFile),
-		llb.Args([]string{
-			`bash`, `-xec`, `
-							set -ex
-
-							json_str=$PACKAGES_PRESENT_ALL
-
-							rm -r /var/lib/dpkg/info
-							mkdir -p /var/lib/dpkg/info
-
-							apt-get clean
-							apt-get update
-
-							while IFS=':' read -r package version; do
-								pkg_name=$(echo "$package" | sed 's/^"\(.*\)"$/\1/')
-								apt-get install --reinstall -y $pkg_name
-							done <<< "$(echo "$json_str" | tr -d '{}\n' | tr ',' '\n')"
-
-							apt --fix-broken install
-							dpkg --configure -a
-							apt-get check
-
-							echo "$STATUS_FILE" > /var/lib/dpkg/status
-						`,
-		})).Root()
+	// moved dpkgdb part into script so that the mount is available for everything
+	
 
 	// Download all requested update packages without specifying the version. This works around:
 	//  - Reports being slightly out of date, where a newer security revision has displaced the one specified leading to not found errors.
@@ -518,9 +488,9 @@ func (dm *dpkgManager) unpackAndMergeUpdates(ctx context.Context, updates unvers
 		for _, u := range updates {
 			pkgStrings = append(pkgStrings, u.Name)
 		}
-		downloadCmd = fmt.Sprintf(aptGetDownloadScript, strings.Join(pkgStrings, " "))
+		downloadCmd = fmt.Sprintf(aptGetDownloadAllScript, "packages=\""+strings.Join(pkgStrings, " ")+"\"")
 	} else {
-		downloadCmd = aptGetDownloadAllScript
+		downloadCmd = fmt.Sprintf(aptGetDownloadAllScript, "packages=$(cat /tmp/packages/packages.txt)")
 	}
 
 	errorValidation := "false"
@@ -528,14 +498,13 @@ func (dm *dpkgManager) unpackAndMergeUpdates(ctx context.Context, updates unvers
 		errorValidation = "true"
 	}
 
-	// Only need info files and status files for correct installation - copy those.
-	updated = updated.File(llb.Copy(dpkgdb, "/var/lib/dpkg/", "/tmp/debian-rootfs/var/lib/dpkg"))
-
 	// Mount image rootfs into tooling image.
 	// Now, when Copa does dpkg install into the temp rootfs, it wont get override any config files since they are already there.
 	downloaded := updated.Run(
+		llb.AddEnv("PACKAGES_PRESENT_ALL", string(jsonPackageData)),
+		llb.AddEnv("STATUS_FILE", dm.tempStatusFile),
 		llb.AddEnv("IGNORE_ERRORS", errorValidation),
-		buildkit.Sh(downloadCmd),
+		llb.Args([]string{`bash`, `-xec`, downloadCmd}),
 		llb.WithProxy(utils.GetProxy()),
 	).AddMount("/tmp/debian-rootfs", dm.config.ImageState)
 
@@ -543,6 +512,8 @@ func (dm *dpkgManager) unpackAndMergeUpdates(ctx context.Context, updates unvers
 	if err != nil {
 		return nil, nil, err
 	}
+
+	log.Debugf("result bytes: %s", string(resultBytes))
 
 	withoutManifest := downloaded.File(llb.Rm("/manifest"))
 	diffBase := llb.Diff(dm.config.ImageState, withoutManifest)

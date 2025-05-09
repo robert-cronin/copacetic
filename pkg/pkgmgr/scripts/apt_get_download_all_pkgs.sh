@@ -4,7 +4,36 @@ else
     set -ex
 fi
 
-packages=$(cat /var/cache/apt/archives/packages.txt)
+# ======================== Replace status file script ========================
+
+if [ "$NO_UPDATES" = "true" ]; then
+    json_str=$PACKAGES_PRESENT_ALL
+
+    rm -r /var/lib/dpkg/info
+    mkdir -p /var/lib/dpkg/info
+
+    apt-get clean
+    apt-get update
+
+    while IFS=':' read -r package version; do
+        pkg_name=$(echo "$package" | sed 's/^"\(.*\)"$/\1/')
+        apt-get install --reinstall -y $pkg_name
+    done <<<"$(echo "$json_str" | tr -d '{}\n' | tr ',' '\n')"
+
+    apt --fix-broken install
+    dpkg --configure -a
+    apt-get check
+
+    echo "$STATUS_FILE" >/var/lib/dpkg/status
+fi
+
+# only need info files and status files for correct installation - copy those.
+cp -r /var/lib/dpkg/* /tmp/debian-rootfs/var/lib/dpkg/
+
+# ======================== original script ========================
+
+
+%s
 apt-get update
 apt-get download --no-install-recommends $packages
 dpkg --root=/tmp/debian-rootfs --admindir=/tmp/debian-rootfs/var/lib/dpkg --force-all --force-confold --install *.deb
@@ -25,11 +54,11 @@ while IFS= read -r line || [ -n "$line" ]; do
             # handle special case for base-files
             if [ "$package_name" = "base-files" ]; then
                 output_name="base"
-            else 
+            else
                 output_name="$package_name"
             fi
             # write the collected content to the package file
-            echo "$package_content" > "$OUTPUT_DIR/$output_name"
+            echo "$package_content" >"$OUTPUT_DIR/$output_name"
         fi
 
         # re-set for next package
@@ -45,17 +74,17 @@ $line"
         fi
 
         case "$line" in
-            "Package:"*)
-                # extract package name
-                package_name=$(echo "$line" | cut -d' ' -f2)
-                ;;
+        "Package:"*)
+            # extract package name
+            package_name=$(echo "$line" | cut -d' ' -f2)
+            ;;
         esac
     fi
-done < "$STATUS_FILE"
+done <"$STATUS_FILE"
 
 # handle last block if file does not end with a newline
 if [ -n "$package_name" ] && [ -n "$package_content" ]; then
-    echo "$package_content" > "$OUTPUT_DIR/$package_name"
+    echo "$package_content" >"$OUTPUT_DIR/$package_name"
 fi
 
 # delete everything else inside /tmp/debian-rootfs/var/lib/dpkg except status.d
@@ -63,7 +92,11 @@ find /tmp/debian-rootfs/var/lib/dpkg -mindepth 1 -maxdepth 1 ! -name "status.d" 
 
 # write results manifest for validation
 for deb in *.deb; do
-    dpkg-deb -f "$deb" | grep "^Package:\|^Version:" >> /tmp/debian-rootfs/manifest
+    dpkg-deb -f "$deb" | grep "^Package:\|^Version:" >>/tmp/debian-rootfs/manifest
 done
+
+apt-get install --only-upgrade -y \
+    openssl \
+    tzdata
 
 exit 0
