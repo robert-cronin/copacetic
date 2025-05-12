@@ -8,6 +8,7 @@ fi
 # 0) writable working dir for the .deb files
 WORKDIR=/tmp/debs
 mkdir -p "$WORKDIR"
+mkdir -p "$DPKG_DIR"/{updates,info,alternatives}
 cd "$WORKDIR"
 
 # 1) apt sandbox directories so `_apt` (or root) can write
