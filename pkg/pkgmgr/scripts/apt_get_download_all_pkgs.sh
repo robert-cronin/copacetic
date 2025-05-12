@@ -8,7 +8,6 @@ fi
 # 0) writable working dir for the .deb files
 WORKDIR=/tmp/debs
 mkdir -p "$WORKDIR"
-mkdir -p "$DPKG_DIR"/{updates,info,alternatives}
 cd "$WORKDIR"
 
 # 1) apt sandbox directories so `_apt` (or root) can write
@@ -17,6 +16,7 @@ chmod 1777 /var/cache/apt/archives /var/cache/apt/archives/partial
 
 # 2) seed (or create) dpkg database in the *target* rootfs
 DPKG_DIR=/tmp/debian-rootfs/var/lib/dpkg
+mkdir -p "$DPKG_DIR"/{updates,info,alternatives,new,tmp}
 STATUS_FILE="$DPKG_DIR/status"
 
 mkdir -p "$DPKG_DIR"
