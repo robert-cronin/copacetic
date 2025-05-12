@@ -21,7 +21,11 @@ STATUS_FILE="$DPKG_DIR/status"
 mkdir -p "$DPKG_DIR"
 if [ ! -f "$STATUS_FILE" ]; then
     if [ -d "$DPKG_DIR/status.d" ] && [ "$(ls -A "$DPKG_DIR/status.d")" ]; then
-        cat "$DPKG_DIR"/status.d/* >"$STATUS_FILE"
+        : >"$STATUS_FILE" # truncate/create
+        for f in "$DPKG_DIR"/status.d/*; do
+            cat "$f" >>"$STATUS_FILE"
+            echo >>"$STATUS_FILE" # always add separator
+        done
     else
         : >"$STATUS_FILE" # empty file is enough for dpkg init
     fi
