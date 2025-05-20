@@ -752,8 +752,7 @@ func patchMultiArchImage(
 		return fmt.Errorf("no patchable platforms found for image %s", image)
 	}
 
-	maxParallel := runtime.NumCPU()
-	sem := make(chan struct{}, maxParallel)
+	sem := make(chan struct{}, runtime.NumCPU())
 	g, gctx := errgroup.WithContext(ctx)
 
 	var mu sync.Mutex

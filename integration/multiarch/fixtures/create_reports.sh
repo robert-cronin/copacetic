@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# scan-matrix.sh – tiny CLI wrapper around Trivy for multi-arch scans
 set -euo pipefail
 
 usage() {
