@@ -228,7 +228,6 @@ func patchSingleArchImage(
 	} else {
 		log.Debugf("Host platform %+v does not match target platform %+v", platforms.DefaultSpec(), targetPlatform)
 		// check if emulation is enabled
-
 		if emulationEnabled := buildkit.QemuAvailable(&targetPlatform); !emulationEnabled {
 			return nil, fmt.Errorf("emulation is not enabled for platform %s", targetPlatform.OS+"/"+targetPlatform.Architecture)
 		}
@@ -398,90 +397,17 @@ func patchSingleArchImage(
 		}
 
 		solveResponse, err := bkClient.Build(ctx, solveOpt, copaProduct, func(ctx context.Context, c gwclient.Client) (*gwclient.Result, error) {
-			// Configure buildctl/client for use by package manager
-			config, err := buildkit.InitializeBuildkitConfig(ctx, c, imageName.String())
-			if err != nil {
-				ch <- err
-				return nil, err
-			}
-
-			// Create package manager helper
-			var manager pkgmgr.PackageManager
-			if reportFile == "" {
-				// determine OS family
-				fileBytes, err := buildkit.ExtractFileFromState(ctx, c, &config.ImageState, "/etc/os-release")
-				if err != nil {
-					ch <- err
-					return nil, fmt.Errorf("unable to extract /etc/os-release file from state %w", err)
-				}
-
-				osType, err := getOSType(ctx, fileBytes)
-				if err != nil {
-					ch <- err
-					return nil, err
-				}
-
-				osVersion, err := getOSVersion(ctx, fileBytes)
-				if err != nil {
-					ch <- err
-					return nil, err
-				}
-
-				// get package manager based on os family type
-				manager, err = pkgmgr.GetPackageManager(osType, osVersion, config, workingFolder)
-				if err != nil {
-					ch <- err
-					return nil, err
-				}
-			} else {
-				// get package manager based on os family type
-				manager, err = pkgmgr.GetPackageManager(updates.Metadata.OS.Type, updates.Metadata.OS.Version, config, workingFolder)
-				if err != nil {
-					ch <- err
-					return nil, err
-				}
-			}
-
-			// Export the patched image state to Docker
-			patchedImageState, errPkgs, err := manager.InstallUpdates(ctx, updates, ignoreError)
-			if err != nil {
-				ch <- err
-				return nil, err
-			}
-
-			def, err := patchedImageState.Marshal(ctx, llb.Platform(targetPlatform.Platform))
-			if err != nil {
-				ch <- err
-				return nil, fmt.Errorf("unable to get platform from ImageState %w", err)
-			}
-
-			res, err := c.Solve(ctx, gwclient.SolveRequest{
-				Definition: def.ToPB(),
-				Evaluate:   true,
-			})
-			if err != nil {
-				ch <- err
-				return nil, err
-			}
-
-			fixed, err := normalizeConfigForPlatform(config.ConfigData, &targetPlatform)
-			if err != nil {
-				ch <- err
-				return nil, err
-			}
-			res.AddMeta(exptypes.ExporterImageConfigKey, fixed)
-
-			// for the vex document, only include updates that were successfully applied
-			pkgType = manager.GetPackageType()
-			if validatedManifest != nil {
-				for _, update := range updates.Updates {
-					if !slices.Contains(errPkgs, update.Name) {
-						validatedManifest.Updates = append(validatedManifest.Updates, update)
-					}
-				}
-			}
-
-			return res, nil
+			return WithGatewayClient(
+				ctx,
+				c,
+				ch,
+				imageName,
+				reportFile, workingFolder,
+				updates, validatedManifest,
+				&pkgType,
+				targetPlatform,
+				ignoreError,
+			)
 		}, buildChannel)
 
 		// Currently can only validate updates if updating via scanner
@@ -560,6 +486,126 @@ func patchSingleArchImage(
 		PatchedImage:  patchedImageName,
 		Digest:        patchedImageDigest,
 	}, nil
+}
+
+func WithGatewayClient(
+	ctx context.Context,
+	c gwclient.Client,
+	ch chan error,
+	imageName reference.Named,
+	reportFile, workingFolder string,
+	updates *unversioned.UpdateManifest, validatedManifest *unversioned.UpdateManifest,
+	pkgType *string,
+	targetPlatform types.PatchPlatform,
+	ignoreError bool,
+) (res *gwclient.Result, err error) {
+	// Configure buildctl/client for use by package manager
+	config, err := buildkit.InitializeBuildkitConfig(ctx, c, imageName.String())
+	if err != nil {
+		ch <- err
+		return nil, err
+	}
+
+	if rule != nil {
+		patchedState, err := applyManualRule(ctx, c, config, rule)
+		if err != nil {
+			ch <- err
+			return nil, err
+		}
+		def, err := patchedState.Marshal(ctx, llb.Platform(targetPlatform.Platform))
+		if err != nil {
+			ch <- err
+			return nil, fmt.Errorf("unable to marshal manual patch state %w", err)
+		}
+		res, err := c.Solve(ctx, gwclient.SolveRequest{
+			Definition: def.ToPB(),
+			Evaluate:   true,
+		})
+		if err != nil {
+			ch <- err
+			return nil, err
+		}
+		return res, nil
+	}
+
+	// Create package manager helper
+	var manager pkgmgr.PackageManager
+	if reportFile == "" {
+		// determine OS family
+		fileBytes, err := buildkit.ExtractFileFromState(ctx, c, &config.ImageState, "/etc/os-release")
+		if err != nil {
+			ch <- err
+			return nil, fmt.Errorf("unable to extract /etc/os-release file from state %w", err)
+		}
+
+		osType, err := getOSType(ctx, fileBytes)
+		if err != nil {
+			ch <- err
+			return nil, err
+		}
+
+		osVersion, err := getOSVersion(ctx, fileBytes)
+		if err != nil {
+			ch <- err
+			return nil, err
+		}
+
+		// get package manager based on os family type
+		manager, err = pkgmgr.GetPackageManager(osType, osVersion, config, workingFolder)
+		if err != nil {
+			ch <- err
+			return nil, err
+		}
+	} else {
+		// get package manager based on os family type
+		manager, err = pkgmgr.GetPackageManager(updates.Metadata.OS.Type, updates.Metadata.OS.Version, config, workingFolder)
+		if err != nil {
+			ch <- err
+			return nil, err
+		}
+	}
+
+	// Export the patched image state to Docker
+	patchedImageState, errPkgs, err := manager.InstallUpdates(ctx, updates, ignoreError)
+	if err != nil {
+		ch <- err
+			return nil, err
+	}
+
+	def, err := patchedImageState.Marshal(ctx, llb.Platform(targetPlatform.Platform))
+	if err != nil {
+		ch <- err
+		return nil, fmt.Errorf("unable to get platform from ImageState %w", err)
+	}
+
+	res, err = c.Solve(ctx, gwclient.SolveRequest{
+		Definition: def.ToPB(),
+		Evaluate:   true,
+	})
+	if err != nil {
+		ch <- err
+		return nil, err
+	}
+
+	fixed, err := normalizeConfigForPlatform(config.ConfigData, &targetPlatform)
+	if err != nil {
+		ch <- err
+		return nil, err
+	}
+	res.AddMeta(exptypes.ExporterImageConfigKey, fixed)
+
+	pkgTypeValue := manager.GetPackageType()
+	pkgType = &pkgTypeValue
+	// for the vex document, only include updates that were successfully applied
+	if validatedManifest != nil {
+		for _, update := range updates.Updates {
+			if !slices.Contains(errPkgs, update.Name) {
+				validatedManifest.Updates = append(validatedManifest.Updates, update)
+			}
+		}
+	}
+
+	return res, nil
 }
 
 // resolvePatchedTag merges explicit tag & suffix rules, returning the final patched tag.

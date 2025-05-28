@@ -3,6 +3,7 @@ module github.com/project-copacetic/copacetic
 go 1.24.2
 
 require (
+	github.com/Azure/dalec v0.15.1
 	github.com/aquasecurity/trivy v0.62.1
 	github.com/containerd/platforms v1.0.0-rc.1
 	github.com/cpuguy83/dockercfg v0.3.2
@@ -140,5 +141,5 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250313205543-e70fdf4c4cb4 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	gotest.tools/v3 v3.4.0 // indirect
+	gotest.tools/v3 v3.5.2 // indirect
 )
