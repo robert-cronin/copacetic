@@ -346,40 +346,9 @@ jobs:
       - name: Create vulnerable Node.js test image
         shell: bash
         run: |
-          # Create test Node.js application with vulnerable dependencies
-          mkdir -p test-nodejs-app
-          cd test-nodejs-app
-          
-          cat > package.json << 'EOF'
-          {
-            "name": "vulnerable-node-app",
-            "version": "1.0.0",
-            "description": "Test app with vulnerable dependencies",
-            "main": "index.js",
-            "dependencies": {
-              "ansi-regex": "3.0.0",
-              "lodash": "4.17.20", 
-              "minimist": "1.2.5",
-              "node-fetch": "2.6.0"
-            }
-          }
-          EOF
-          
-          cat > index.js << 'EOF'
-          console.log("Test Node.js app with vulnerable dependencies");
-          EOF
-          
-          cat > Dockerfile << 'EOF'
-          FROM node:18-alpine
-          WORKDIR /app
-          COPY package*.json ./
-          RUN npm install
-          COPY . .
-          CMD ["node", "index.js"]
-          EOF
-          
+          # Build test Node.js application with vulnerable dependencies from testdata
+          cd test/e2e/nodejs/testdata/test-nodejs-app
           docker build -t vulnerable-node-app:latest .
-          cd ..
       - name: Generate vulnerability report
         shell: bash
         run: |

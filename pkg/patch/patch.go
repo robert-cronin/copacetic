@@ -483,7 +483,7 @@ func patchSingleArchImage(
 			var patchedImageState *llb.State
 			var errPkgs []string
 			
-			// Always call OS package manager (it will handle empty updates)
+			// Always call OS package manager (it will handle empty updates gracefully)
 			patchedImageState, errPkgs, err = manager.InstallUpdates(ctx, updates, ignoreError)
 			if err != nil {
 				ch <- err
