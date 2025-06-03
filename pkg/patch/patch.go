@@ -480,11 +480,7 @@ func patchSingleArchImage(
 			}
 
 			// Export the patched image state to Docker
-			var patchedImageState *llb.State
-			var errPkgs []string
-			
-			// Always call OS package manager (it will handle empty updates gracefully)
-			patchedImageState, errPkgs, err = manager.InstallUpdates(ctx, updates, ignoreError)
+			patchedImageState, errPkgs, err := manager.InstallUpdates(ctx, updates, ignoreError)
 			if err != nil {
 				ch <- err
 				return nil, err

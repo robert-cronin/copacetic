@@ -29,8 +29,8 @@ func NewTrivyParser() *TrivyParser {
 	return &TrivyParser{}
 }
 
-// extractAppropriateFixedVersion selects the most appropriate fixed version from a comma-separated list
-// For Node.js packages, we prefer to stay within the same major version if possible
+// extractAppropriateFixedVersion selects the most appropriate fixed version from a comma-separated list.
+// For Node.js packages, we prefer to stay within the same major version if possible.
 func extractAppropriateFixedVersion(installedVersion, fixedVersions string) string {
 	// If there's only one version, return it
 	if !strings.Contains(fixedVersions, ",") {
@@ -74,12 +74,13 @@ func (t *TrivyParser) Parse(file string) (*unversioned.UpdateManifest, error) {
 
 	for i := range report.Results {
 		r := &report.Results[i]
-		if r.Class == trivyTypes.ClassOSPkg {
+		switch r.Class {
+		case trivyTypes.ClassOSPkg:
 			if osResult != nil {
 				return nil, errors.New("unexpected multiple results for os-pkgs")
 			}
 			osResult = r
-		} else if r.Class == trivyTypes.ClassLangPkg {
+		case trivyTypes.ClassLangPkg:
 			// Check if this is a Node.js/npm result
 			if r.Type == "npm" || r.Type == "nodejs" || r.Type == "yarn" || r.Type == "pnpm" || r.Type == "node-pkg" {
 				log.Infof("Found Node.js vulnerabilities in %s", r.Target)

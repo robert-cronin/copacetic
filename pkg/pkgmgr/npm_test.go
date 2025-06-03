@@ -108,7 +108,7 @@ func TestNpmManagerInstallUpdates(t *testing.T) {
 
 func TestNpmManagerNonZeroUpdates(t *testing.T) {
 	ctx := context.Background()
-	
+
 	// Test that npm manager processes non-zero updates correctly
 	manifest := &unversioned.UpdateManifest{
 		Updates: []unversioned.UpdatePackage{
@@ -147,7 +147,4 @@ func TestNewNpmManager(t *testing.T) {
 
 	assert.NotNil(t, manager)
 	assert.IsType(t, &npmManager{}, manager)
-
-	// Verify it implements PackageManager interface
-	var _ = manager
 }
