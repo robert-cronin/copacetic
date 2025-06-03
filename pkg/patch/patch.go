@@ -519,17 +519,6 @@ func patchSingleArchImage(
 					log.Warnf("Failed to apply Node.js patches (ignoring error): %v", nodeErr)
 				} else {
 					patchedImageState = nodePatchedState
-					// Track successful Node.js updates in validated manifest
-					if validatedManifest != nil {
-						for _, update := range updates.NodeUpdates {
-							if !slices.Contains(nodeErrPkgs, update.Name) {
-								// Add a marker to distinguish Node packages
-								nodeUpdate := update
-								nodeUpdate.Name = "node:" + update.Name
-								validatedManifest.Updates = append(validatedManifest.Updates, nodeUpdate)
-							}
-						}
-					}
 					log.Infof("Successfully applied %d Node.js package updates",
 						len(updates.NodeUpdates)-len(nodeErrPkgs))
 				}

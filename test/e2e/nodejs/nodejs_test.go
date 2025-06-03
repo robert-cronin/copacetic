@@ -13,24 +13,24 @@ import (
 
 func TestNodeJSPatching(t *testing.T) {
 	testCases := []struct {
-		name                      string
-		image                     string
-		report                    string
-		expectedPatches          int
-		expectedVulnerabilities  int
-		shouldSucceed            bool
-		expectedPackageVersions  map[string]string
+		name                    string
+		image                   string
+		report                  string
+		expectedPatches         int
+		expectedVulnerabilities int
+		shouldSucceed           bool
+		expectedPackageVersions map[string]string
 	}{
 		{
-			name:                     "vulnerable-node-app with npm vulnerabilities",
-			image:                    "vulnerable-node-app:latest",
-			report:                   "./testdata/vulnerable-node-app-report.json",
-			expectedPatches:          7, // Number of Node.js vulnerabilities that should be patched
-			expectedVulnerabilities:  0, // Expected remaining vulnerabilities in application packages
-			shouldSucceed:            true,
+			name:                    "vulnerable-node-app with npm vulnerabilities",
+			image:                   "vulnerable-node-app:latest",
+			report:                  "./testdata/vulnerable-node-app-report.json",
+			expectedPatches:         7, // Number of Node.js vulnerabilities that should be patched
+			expectedVulnerabilities: 0, // Expected remaining vulnerabilities in application packages
+			shouldSucceed:           true,
 			expectedPackageVersions: map[string]string{
 				"ansi-regex": "3.0.1",
-				"lodash":     "4.17.21", 
+				"lodash":     "4.17.21",
 				"minimist":   "1.2.8",
 				"node-fetch": "2.7.0",
 			},
@@ -47,26 +47,26 @@ func TestNodeJSPatching(t *testing.T) {
 
 			// Run the patch operation
 			output, err := runPatch(tc.image, tc.report)
-			
+
 			if tc.shouldSucceed {
 				require.NoError(t, err, "Patch operation should succeed. Output: %s", string(output))
-				
+
 				// Verify that the expected number of Node.js patches were applied
 				outputStr := string(output)
 				assert.Contains(t, outputStr, fmt.Sprintf("Found %d Node.js vulnerabilities to patch", tc.expectedPatches),
 					"Should find the expected number of Node.js vulnerabilities")
 				assert.Contains(t, outputStr, fmt.Sprintf("Successfully applied %d Node.js package updates", tc.expectedPatches),
 					"Should successfully apply the expected number of Node.js patches")
-				
+
 				// Verify patched image was created
 				patchedImage := strings.Replace(tc.image, ":latest", ":patched", 1)
 				assert.True(t, imageExists(t, patchedImage), "Patched image should exist")
-				
+
 				// Verify package versions were updated correctly
 				if tc.expectedPackageVersions != nil {
 					verifyPackageVersions(t, patchedImage, tc.expectedPackageVersions)
 				}
-				
+
 				// Scan patched image to verify vulnerabilities were reduced
 				if tc.expectedVulnerabilities >= 0 {
 					verifyVulnerabilityReduction(t, patchedImage, tc.expectedVulnerabilities)
@@ -81,7 +81,7 @@ func TestNodeJSPatching(t *testing.T) {
 func TestNodeJSPatchingEdgeCases(t *testing.T) {
 	testCases := []struct {
 		name          string
-		image         string  
+		image         string
 		report        string
 		shouldSucceed bool
 		expectedError string
@@ -89,7 +89,7 @@ func TestNodeJSPatchingEdgeCases(t *testing.T) {
 		{
 			name:          "image without Node.js",
 			image:         "alpine:3.14.0",
-			report:        "./testdata/vulnerable-node-app-report.json", 
+			report:        "./testdata/vulnerable-node-app-report.json",
 			shouldSucceed: true, // Should succeed but skip Node.js patching
 			expectedError: "",
 		},
@@ -98,7 +98,7 @@ func TestNodeJSPatchingEdgeCases(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			output, err := runPatch(tc.image, tc.report)
-			
+
 			if tc.shouldSucceed {
 				assert.NoError(t, err, "Patch operation should succeed. Output: %s", string(output))
 			} else {
@@ -118,11 +118,11 @@ func runPatch(image, report string) ([]byte, error) {
 		"-r=" + report,
 		"-s=" + scannerPlugin,
 	}
-	
+
 	if buildkitAddr != "" {
 		args = append(args, "-a="+buildkitAddr)
 	}
-	
+
 	//#nosec G204
 	cmd := exec.Command(copaPath, args...)
 	out, err := cmd.CombinedOutput()
@@ -138,21 +138,21 @@ func imageExists(t *testing.T, image string) bool {
 
 func verifyPackageVersions(t *testing.T, image string, expectedVersions map[string]string) {
 	t.Helper()
-	
+
 	// Get package versions from the patched image
 	cmd := exec.Command("docker", "run", "--rm", image, "sh", "-c", "cd /app && npm list --depth=0 --json")
 	output, err := cmd.CombinedOutput()
 	require.NoError(t, err, "Should be able to get package list from patched image")
-	
+
 	var npmList struct {
 		Dependencies map[string]struct {
 			Version string `json:"version"`
 		} `json:"dependencies"`
 	}
-	
+
 	err = json.Unmarshal(output, &npmList)
 	require.NoError(t, err, "Should be able to parse npm list output")
-	
+
 	// Verify each expected package version
 	for pkg, expectedVersion := range expectedVersions {
 		dep, exists := npmList.Dependencies[pkg]
@@ -165,7 +165,7 @@ func verifyPackageVersions(t *testing.T, image string, expectedVersions map[stri
 
 func verifyVulnerabilityReduction(t *testing.T, image string, expectedVulns int) {
 	t.Helper()
-	
+
 	// Run Trivy scan on patched image
 	cmd := exec.Command("trivy", "image", "--format", "table", image)
 	output, err := cmd.CombinedOutput()
@@ -173,11 +173,11 @@ func verifyVulnerabilityReduction(t *testing.T, image string, expectedVulns int)
 		t.Logf("Trivy scan output: %s", string(output))
 		require.NoError(t, err, "Should be able to scan patched image with Trivy")
 	}
-	
+
 	// For now, just check that the command succeeds and that there are fewer vulnerabilities
 	// A more sophisticated check would parse the table output or use JSON format properly
 	outputStr := string(output)
-	
+
 	// Count lines that contain "HIGH" or "CRITICAL" vulnerabilities in app packages
 	appVulnLines := 0
 	for _, line := range strings.Split(outputStr, "\n") {
@@ -185,7 +185,7 @@ func verifyVulnerabilityReduction(t *testing.T, image string, expectedVulns int)
 			appVulnLines++
 		}
 	}
-	
-	assert.LessOrEqual(t, appVulnLines, expectedVulns, 
+
+	assert.LessOrEqual(t, appVulnLines, expectedVulns,
 		"Patched image should have at most %d HIGH/CRITICAL vulnerabilities in application packages", expectedVulns)
 }

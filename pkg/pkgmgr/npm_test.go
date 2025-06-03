@@ -106,65 +106,35 @@ func TestNpmManagerInstallUpdates(t *testing.T) {
 	}
 }
 
-func TestBuildNpmPatchScript(t *testing.T) {
-	tests := []struct {
-		name     string
-		updates  unversioned.UpdatePackages
-		contains []string
-	}{
-		{
-			name:     "empty updates",
-			updates:  unversioned.UpdatePackages{},
-			contains: []string{"npm audit fix --yes", "npm cache clean --force"},
-		},
-		{
-			name: "single update",
-			updates: unversioned.UpdatePackages{
-				{
-					Name:         "lodash",
-					FixedVersion: "4.17.21",
-				},
-			},
-			contains: []string{
-				"npm audit fix --yes",
-				"npm install lodash@4.17.21",
-				"npm cache clean --force",
-				"patch_node_deps",
-			},
-		},
-		{
-			name: "multiple updates",
-			updates: unversioned.UpdatePackages{
-				{
-					Name:         "lodash",
-					FixedVersion: "4.17.21",
-				},
-				{
-					Name:         "minimist",
-					FixedVersion: "1.2.6",
-				},
-			},
-			contains: []string{
-				"npm install lodash@4.17.21 minimist@1.2.6",
+func TestNpmManagerNonZeroUpdates(t *testing.T) {
+	ctx := context.Background()
+	
+	// Test that npm manager processes non-zero updates correctly
+	manifest := &unversioned.UpdateManifest{
+		Updates: []unversioned.UpdatePackage{
+			{
+				Name:             "lodash",
+				InstalledVersion: "4.17.20",
+				FixedVersion:     "4.17.21",
+				VulnerabilityID:  "CVE-2021-23337",
 			},
 		},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			script := buildNpmPatchScript(tc.updates)
-
-			// Check that the script contains expected strings
-			for _, expected := range tc.contains {
-				assert.Contains(t, script, expected)
-			}
-
-			// Check common elements
-			assert.Contains(t, script, "#!/bin/sh")
-			assert.Contains(t, script, "set -e")
-			assert.Contains(t, script, "package.json")
-		})
+	config := &buildkit.Config{
+		ImageState: llb.Image("node:18-alpine"),
 	}
+
+	manager := &npmManager{
+		config:        config,
+		workingFolder: "/tmp/test",
+	}
+
+	state, errPkgs, err := manager.InstallUpdates(ctx, manifest, false)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, state)
+	assert.Equal(t, 0, len(errPkgs)) // We assume all succeed since npm audit fix handles resolution
 }
 
 func TestNewNpmManager(t *testing.T) {

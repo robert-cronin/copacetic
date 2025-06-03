@@ -1,6 +1,6 @@
 {
   "SchemaVersion": 2,
-  "CreatedAt": "2025-06-03T02:13:34.835957597Z",
+  "CreatedAt": "2025-06-03T02:53:47.621455774Z",
   "ArtifactName": "vulnerable-node-app:latest",
   "ArtifactType": "container_image",
   "Metadata": {
