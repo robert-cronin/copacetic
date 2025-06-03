@@ -89,7 +89,7 @@ func TestNodeJSPatchingEdgeCases(t *testing.T) {
 		{
 			name:          "image without Node.js",
 			image:         "alpine:3.14.0",
-			report:        "./testdata/vulnerable-node-app-report.json",
+			report:        "./testdata/alpine-report.json",
 			shouldSucceed: true, // Should succeed but skip Node.js patching
 			expectedError: "",
 		},

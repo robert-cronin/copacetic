@@ -483,16 +483,11 @@ func patchSingleArchImage(
 			var patchedImageState *llb.State
 			var errPkgs []string
 			
-			// Only call OS package manager if we have OS updates
-			if updates != nil && len(updates.Updates) > 0 {
-				patchedImageState, errPkgs, err = manager.InstallUpdates(ctx, updates, ignoreError)
-				if err != nil {
-					ch <- err
-					return nil, err
-				}
-			} else {
-				// No OS updates, start with the original image state
-				patchedImageState = &config.ImageState
+			// Always call OS package manager (it will handle empty updates)
+			patchedImageState, errPkgs, err = manager.InstallUpdates(ctx, updates, ignoreError)
+			if err != nil {
+				ch <- err
+				return nil, err
 			}
 
 			// Check for Node.js updates in the manifest
