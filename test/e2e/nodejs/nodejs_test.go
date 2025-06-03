@@ -39,10 +39,9 @@ func TestNodeJSPatching(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Skip test if test image doesn't exist
+			// Build test image if it doesn't exist
 			if !imageExists(t, tc.image) {
-				t.Skipf("Test image %s does not exist, skipping test", tc.image)
-				return
+				buildTestImage(t, tc.image)
 			}
 
 			// Run the patch operation
@@ -112,10 +111,17 @@ func TestNodeJSPatchingEdgeCases(t *testing.T) {
 }
 
 func runPatch(image, report string) ([]byte, error) {
+	// Create explicit patched tag name
+	patchedTag := strings.Replace(image, ":latest", ":patched", 1)
+	if patchedTag == image {
+		patchedTag = image + ":patched"
+	}
+	
 	args := []string{
 		"patch",
 		"-i=" + image,
 		"-r=" + report,
+		"-t=" + strings.Split(patchedTag, ":")[1], // Extract just the tag part
 		"-s=" + scannerPlugin,
 	}
 
@@ -134,6 +140,26 @@ func imageExists(t *testing.T, image string) bool {
 	cmd := exec.Command("docker", "inspect", image)
 	err := cmd.Run()
 	return err == nil
+}
+
+func buildTestImage(t *testing.T, imageName string) {
+	t.Helper()
+	
+	// Only build the vulnerable-node-app image, not arbitrary images
+	if imageName != "vulnerable-node-app:latest" {
+		t.Fatalf("buildTestImage only supports building vulnerable-node-app:latest, got: %s", imageName)
+	}
+	
+	t.Logf("Building test image: %s", imageName)
+	
+	// Build the image from the testdata directory
+	cmd := exec.Command("docker", "build", "-t", imageName, "./testdata/test-nodejs-app")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Failed to build test image %s: %v\nOutput: %s", imageName, err, string(output))
+	}
+	
+	t.Logf("Successfully built test image: %s", imageName)
 }
 
 func verifyPackageVersions(t *testing.T, image string, expectedVersions map[string]string) {

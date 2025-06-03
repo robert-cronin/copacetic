@@ -343,16 +343,6 @@ jobs:
           ./copa --version
       - name: Set up QEMU
         uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
-      - name: Create vulnerable Node.js test image
-        shell: bash
-        run: |
-          # Build test Node.js application with vulnerable dependencies from testdata
-          cd test/e2e/nodejs/testdata/test-nodejs-app
-          docker build -t vulnerable-node-app:latest .
-      - name: Generate vulnerability report
-        shell: bash
-        run: |
-          trivy image --format json --output test/e2e/nodejs/testdata/vulnerable-node-app-report.json vulnerable-node-app:latest
       - name: Run Node.js e2e tests
         shell: bash
         run: |
