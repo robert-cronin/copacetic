@@ -480,10 +480,59 @@ func patchSingleArchImage(
 			}
 
 			// Export the patched image state to Docker
-			patchedImageState, errPkgs, err := manager.InstallUpdates(ctx, updates, ignoreError)
-			if err != nil {
-				ch <- err
-				return nil, err
+			var patchedImageState *llb.State
+			var errPkgs []string
+			
+			// Only call OS package manager if we have OS updates
+			if updates != nil && len(updates.Updates) > 0 {
+				patchedImageState, errPkgs, err = manager.InstallUpdates(ctx, updates, ignoreError)
+				if err != nil {
+					ch <- err
+					return nil, err
+				}
+			} else {
+				// No OS updates, start with the original image state
+				patchedImageState = &config.ImageState
+			}
+
+			// Check for Node.js updates in the manifest
+			if updates != nil && len(updates.NodeUpdates) > 0 {
+				log.Infof("Found %d Node.js vulnerabilities to patch", len(updates.NodeUpdates))
+
+				// Create npm manager for Node.js updates
+				npmMgr := pkgmgr.NewNpmManager(config, workingFolder)
+
+				// Create a manifest with Node updates
+				nodeManifest := &unversioned.UpdateManifest{
+					Metadata: updates.Metadata,
+					Updates:  updates.NodeUpdates,
+				}
+
+				// Apply Node.js patches to the already-patched state
+				config.ImageState = *patchedImageState
+				nodePatchedState, nodeErrPkgs, nodeErr := npmMgr.InstallUpdates(ctx, nodeManifest, ignoreError)
+				if nodeErr != nil {
+					if !ignoreError {
+						ch <- nodeErr
+						return nil, nodeErr
+					}
+					log.Warnf("Failed to apply Node.js patches (ignoring error): %v", nodeErr)
+				} else {
+					patchedImageState = nodePatchedState
+					// Track successful Node.js updates in validated manifest
+					if validatedManifest != nil {
+						for _, update := range updates.NodeUpdates {
+							if !slices.Contains(nodeErrPkgs, update.Name) {
+								// Add a marker to distinguish Node packages
+								nodeUpdate := update
+								nodeUpdate.Name = "node:" + update.Name
+								validatedManifest.Updates = append(validatedManifest.Updates, nodeUpdate)
+							}
+						}
+					}
+					log.Infof("Successfully applied %d Node.js package updates",
+						len(updates.NodeUpdates)-len(nodeErrPkgs))
+				}
 			}
 
 			def, err := patchedImageState.Marshal(ctx, llb.Platform(targetPlatform.Platform))

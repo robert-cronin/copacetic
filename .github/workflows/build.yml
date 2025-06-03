@@ -312,6 +312,89 @@ jobs:
           . .github/workflows/scripts/buildkitenvs/direct/tcp
           go test -v ./test/e2e/plugin --addr="${COPA_BUILDKIT_ADDR}" --copa="$(pwd)/copa" --scanner fake -timeout 0
 
+  test-nodejs:
+    needs: build
+    name: Test Node.js patching
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: read-all
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.3.1
+        with:
+          egress-policy: audit
+      - name: Check out code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: "1.24"
+          check-latest: true
+      - name: Add containerd-snapshotter to docker daemon
+        run: |
+          echo '{"features": { "containerd-snapshotter": true }}' | sudo tee /etc/docker/daemon.json
+          sudo systemctl restart docker
+      - name: Install required tools
+        shell: bash
+        run: .github/workflows/scripts/download-tooling.sh
+      - name: Download copa from build artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: copa_edge_linux_amd64.tar.gz
+      - name: Extract copa
+        shell: bash
+        run: |
+          tar xzf copa_edge_linux_amd64.tar.gz
+          ./copa --version
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+      - name: Create vulnerable Node.js test image
+        shell: bash
+        run: |
+          # Create test Node.js application with vulnerable dependencies
+          mkdir -p test-nodejs-app
+          cd test-nodejs-app
+          
+          cat > package.json << 'EOF'
+          {
+            "name": "vulnerable-node-app",
+            "version": "1.0.0",
+            "description": "Test app with vulnerable dependencies",
+            "main": "index.js",
+            "dependencies": {
+              "ansi-regex": "3.0.0",
+              "lodash": "4.17.20", 
+              "minimist": "1.2.5",
+              "node-fetch": "2.6.0"
+            }
+          }
+          EOF
+          
+          cat > index.js << 'EOF'
+          console.log("Test Node.js app with vulnerable dependencies");
+          EOF
+          
+          cat > Dockerfile << 'EOF'
+          FROM node:18-alpine
+          RUN apk add --no-cache curl git
+          WORKDIR /app
+          COPY package*.json ./
+          RUN npm install
+          COPY . .
+          CMD ["node", "index.js"]
+          EOF
+          
+          docker build -t vulnerable-node-app:latest .
+          cd ..
+      - name: Generate vulnerability report
+        shell: bash
+        run: |
+          trivy image --format json --output test/e2e/nodejs/testdata/vulnerable-node-app-report.json vulnerable-node-app:latest
+      - name: Run Node.js e2e tests
+        shell: bash
+        run: |
+          set -eu -o pipefail
+          go test -v ./test/e2e/nodejs --addr="docker://" --copa="$(pwd)/copa" --scanner=trivy -timeout 0
+
   test-push:
     needs: build
     name: Test push
