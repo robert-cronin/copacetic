@@ -32,6 +32,22 @@ for i in {1..30}; do
     sleep 1
 done
 
+# Wait for buildkitd to be ready inside the container
+echo "Waiting for buildkitd to be ready inside container..." >&2
+for i in {1..30}; do
+    if podman exec "${CONTAINER_NAME}" buildctl debug info >/dev/null 2>&1; then
+        echo "Buildkitd is ready" >&2
+        break
+    fi
+    if [ $i -eq 30 ]; then
+        echo "Buildkitd failed to become ready" >&2
+        echo "Container logs:" >&2
+        podman logs "${CONTAINER_NAME}" >&2
+        exit 1
+    fi
+    sleep 1
+done
+
 # Test DNS resolution inside the container
 echo "Testing DNS resolution in buildkit container..." >&2
 if podman exec "${CONTAINER_NAME}" nslookup google.com >/dev/null 2>&1; then
