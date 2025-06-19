@@ -10,6 +10,6 @@ curl -sfL https://github.com/moby/buildkit/releases/download/v${BUILDKIT_VERSION
 sudo tar -zxvf buildkit.tar.gz -C /usr/local/
 rm buildkit.tar.gz
 
-sudo apt-get update
-sudo apt-get install -y podman
-systemctl --user enable --now podman.socket || true
+# sudo apt-get update
+# sudo apt-get install -y podman
+# systemctl --user enable --now podman.socket || true
