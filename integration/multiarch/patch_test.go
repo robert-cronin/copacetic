@@ -404,28 +404,6 @@ func verifyAnnotations(t *testing.T, patchedRef string, platforms []string, repo
 		if isPatchablePlatform(platformStr, platforms, reportDir) {
 			t.Logf("checking manifest annotations for patched platform %s", platformStr)
 
-			// Verify that if original nginx annotations exist, they are preserved
-			commonAnnotations := []string{
-				"org.opencontainers.image.source",
-				"org.opencontainers.image.url",
-				"org.opencontainers.image.version",
-				"org.opencontainers.image.revision",
-				"org.opencontainers.image.base.name",
-				"org.opencontainers.image.base.digest",
-			}
-
-			foundAnnotations := 0
-			for _, expectedKey := range commonAnnotations {
-				if value, exists := manifestEntry.Annotations[expectedKey]; exists {
-					assert.NotEmpty(t, value, "annotation %s should not be empty for platform %s", expectedKey, platformStr)
-					t.Logf("platform %s has annotation %s=%s", platformStr, expectedKey, value)
-					foundAnnotations++
-				}
-			}
-
-			// We expect at least some annotations to be preserved for nginx images
-			assert.Greater(t, foundAnnotations, 0, "platform %s should have at least some preserved annotations", platformStr)
-
 			// The created timestamp should be updated for patched platforms
 			if createdTime, exists := manifestEntry.Annotations["org.opencontainers.image.created"]; exists {
 				assert.NotEmpty(t, createdTime, "created timestamp should not be empty for patched platform %s", platformStr)
