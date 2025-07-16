@@ -57,13 +57,13 @@ func TestFrontendPatch(t *testing.T) {
 
 func runFrontendTest(t *testing.T, img testImage) {
 	// Define image references
-	ref := fmt.Sprintf("%s:%s", img.LocalImage, img.Tag)
+	localPushRef := fmt.Sprintf("%s:%s", img.LocalImage, img.Tag)
 	originalImageRef := fmt.Sprintf("%s:%s", img.OriginalImage, img.Tag)
 	patchedRef := fmt.Sprintf("%s:%s-frontend-patched", img.LocalImage, img.Tag)
 
 	// Copy original image to local registry
-	t.Logf("Copying %s to %s", originalImageRef, ref)
-	copyImage(t, originalImageRef, ref)
+	t.Logf("Copying %s to %s", originalImageRef, localPushRef)
+	copyImage(t, originalImageRef, localPushRef)
 
 	// Create temp directory for output
 	tempDir := t.TempDir()
@@ -84,8 +84,8 @@ func runFrontendTest(t *testing.T, img testImage) {
 	args := []string{
 		"build",
 		"--frontend=gateway.v0",
-		"--opt", fmt.Sprintf("source=%s", frontendImage),
-		"--opt", fmt.Sprintf("image=%s", ref),
+		"--opt", fmt.Sprintf("source=%s", frontendImage), // Use bridge gateway IP
+		"--opt", fmt.Sprintf("image=%s", strings.Replace(localPushRef, "localhost:5000", "172.17.0.1:5000", 1)), // Use bridge gateway IP
 		"--opt", fmt.Sprintf("report=%s", string(reportData)),
 		"--opt", "scanner=trivy",
 		"--output", fmt.Sprintf("type=docker,dest=%s", outputTar),
@@ -98,6 +98,14 @@ func runFrontendTest(t *testing.T, img testImage) {
 	if len(img.Platforms) == 1 {
 		args = append(args, "--opt", fmt.Sprintf("platform=%s", img.Platforms[0]))
 	}
+
+	// Add BuildKit address if not using default
+	if buildkitAddr != "docker://" {
+		args = append([]string{"--addr", buildkitAddr}, args...)
+	}
+	
+	// Allow insecure registry access
+	args = append(args, "--allow", "security.insecure")
 
 	t.Logf("Running buildctl with frontend: %v", args)
 	cmd := exec.Command("buildctl", args...)
@@ -141,12 +149,12 @@ func runFrontendTest(t *testing.T, img testImage) {
 	require.NoError(t, err, "patched image does not exist or cannot be inspected")
 
 	// Compare original and patched images
-	compareImages(t, ref, patchedRef, img.Distro)
+	compareImages(t, localPushRef, patchedRef, img.Distro)
 
 	// Cleanup
 	cleanupImage(t, patchedRef)
 	cleanupImage(t, loadedImageName)
-	cleanupImage(t, ref)
+	cleanupImage(t, localPushRef)
 }
 
 func copyImage(t *testing.T, src, dst string) {
