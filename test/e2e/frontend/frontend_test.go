@@ -80,7 +80,7 @@ func runFrontendTest(t *testing.T, img testImage) {
 		reportData = simpleReport
 	}
 
-	// Build the buildctl command for frontend patching
+	// Build the buildctl command for frontend patching with enhanced options
 	args := []string{
 		"build",
 		"--frontend=gateway.v0",
@@ -88,6 +88,9 @@ func runFrontendTest(t *testing.T, img testImage) {
 		"--opt", fmt.Sprintf("image=%s", strings.Replace(localPushRef, "localhost:5000", "172.17.0.1:5000", 1)), // Use bridge gateway IP
 		"--opt", fmt.Sprintf("report=%s", string(reportData)),
 		"--opt", "scanner=trivy",
+		"--opt", "security-mode=sandbox", // Use enhanced security mode
+		"--opt", "cache-mode=local",     // Use local caching
+		"--opt", fmt.Sprintf("annotation.test-case=%s", img.Description), // Add test annotation
 		"--output", fmt.Sprintf("type=docker,dest=%s", outputTar),
 	}
 

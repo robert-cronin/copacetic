@@ -2,7 +2,6 @@ package copa
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -54,7 +53,7 @@ func (f *Frontend) buildPatchedImage(ctx context.Context, config *FrontendConfig
 		return bkConfig.ImageState, nil
 	}
 
-	// Apply package updates
+	// Apply package updates using existing Copa logic
 	updatedState, _, err := pm.InstallUpdates(ctx, vr, config.IgnoreErrors)
 	if err != nil {
 		if config.IgnoreErrors {
@@ -65,7 +64,19 @@ func (f *Frontend) buildPatchedImage(ctx context.Context, config *FrontendConfig
 		return llb.State{}, errors.Wrap(err, "failed to install package updates")
 	}
 
-	return *updatedState, nil
+	// Use enhanced LLB graph construction for better layer management
+	graphBuilder := NewLLBGraphBuilder(f.client, config)
+	finalState := *updatedState
+	
+	// Apply any additional LLB enhancements (security constraints, caching, etc.)
+	if config.SecurityMode != "" {
+		finalState = graphBuilder.applySecurityConstraints(finalState)
+	}
+	if config.CacheMode != "" {
+		finalState = graphBuilder.applyCaching(finalState)
+	}
+
+	return finalState, nil
 }
 
 // detectOSFromImage attempts to detect the OS type and version from the image
@@ -127,12 +138,17 @@ func parseOSRelease(content string) (string, string) {
 
 
 // parseReportData parses vulnerability report data from bytes
-func (f *Frontend) parseReportData(data []byte, scanner string) (*unversioned.UpdateManifest, error) {
-	// For now, assume native format and parse as JSON
-	// In a full implementation, we'd handle different scanner formats
-	var manifest unversioned.UpdateManifest
-	if err := json.Unmarshal(data, &manifest); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal vulnerability report")
+func (f *Frontend) parseReportData(data []byte, scannerName string) (*unversioned.UpdateManifest, error) {
+	// Use scanner abstraction for report parsing
+	scanner, err := f.scannerFactory.GetScanner(scannerName)
+	if err != nil {
+		return nil, errors.Wrapf(err, "unsupported scanner: %s", scannerName)
 	}
-	return &manifest, nil
+	
+	manifest, err := scanner.ParseReport(data)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to parse %s report", scannerName)
+	}
+	
+	return manifest, nil
 }

@@ -11,22 +11,31 @@ import (
 
 const (
 	// Frontend option keys
-	keyImage       = "image"
-	keyReport      = "report"
-	keyReportPath  = "report-path"
-	keyScanner     = "scanner"
+	keyImage        = "image"
+	keyReport       = "report"
+	keyReportPath   = "report-path"
+	keyScanner      = "scanner"
 	keyIgnoreErrors = "ignore-errors"
-	keyPlatform    = "platform"
+	keyPlatform     = "platform"
+	keyPkgMgr       = "package-manager"
+	keyOfflineMode  = "offline-mode"
+	keyCacheMode    = "cache-mode"
+	keySecurityMode = "security-mode"
+	keyMirror       = "package-mirror"
 )
 
 // Frontend implements the BuildKit frontend interface for Copa
 type Frontend struct {
-	client gwclient.Client
+	client         gwclient.Client
+	scannerFactory *ScannerFactory
 }
 
 // Build is the main entry point for the frontend
 func Build(ctx context.Context, client gwclient.Client) (*gwclient.Result, error) {
-	f := &Frontend{client: client}
+	f := &Frontend{
+		client:         client,
+		scannerFactory: NewScannerFactory(),
+	}
 	return f.build(ctx)
 }
 

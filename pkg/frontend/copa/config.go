@@ -30,6 +30,18 @@ type FrontendConfig struct {
 	// Package manager type (auto-detected if not specified)
 	PkgMgr string
 
+	// Whether to run in offline mode (air-gapped environments)
+	OfflineMode bool
+
+	// Cache mode for BuildKit operations
+	CacheMode string
+
+	// Security mode constraints
+	SecurityMode string
+
+	// Package mirror for air-gapped environments
+	PackageMirror string
+
 	// Additional annotations to add to patched image
 	Annotations map[string]string
 }
@@ -82,6 +94,31 @@ func ParseConfig(ctx context.Context, client gwclient.Client) (*FrontendConfig, 
 		config.Report = report
 	} else {
 		return nil, errors.New("vulnerability report required via --opt report=<data> or --opt report-path=<path>")
+	}
+
+	// Parse package manager
+	if v, ok := opts.Opts[keyPkgMgr]; ok {
+		config.PkgMgr = v
+	}
+
+	// Parse offline mode
+	if v, ok := opts.Opts[keyOfflineMode]; ok {
+		config.OfflineMode = v == "true" || v == "1"
+	}
+
+	// Parse cache mode
+	if v, ok := opts.Opts[keyCacheMode]; ok {
+		config.CacheMode = v
+	}
+
+	// Parse security mode
+	if v, ok := opts.Opts[keySecurityMode]; ok {
+		config.SecurityMode = v
+	}
+
+	// Parse package mirror
+	if v, ok := opts.Opts[keyMirror]; ok {
+		config.PackageMirror = v
 	}
 
 	// Parse additional annotations
