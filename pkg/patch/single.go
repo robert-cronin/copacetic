@@ -131,7 +131,7 @@ func patchSingleArchImage(
 	}
 
 	// Create buildkit client
-	bkClient, err := bkNewClient(ctx, bkOpts)
+	bkClient, err := buildkit.NewClient(ctx, bkOpts)
 	if err != nil {
 		return nil, err
 	}

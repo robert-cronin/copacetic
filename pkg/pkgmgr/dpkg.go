@@ -85,8 +85,8 @@ func isLessThanDebianVersion(v1, v2 string) bool {
 	return debV1.LessThan(debV2)
 }
 
-// Map the target image OSType & OSVersion to an appropriate tooling image.
-func getAPTImageName(manifest *unversioned.UpdateManifest, osVersion string, useCachePrefix bool) string {
+// GetAPTImageName maps the target image OSType & OSVersion to an appropriate tooling image.
+func GetAPTImageName(manifest *unversioned.UpdateManifest, osVersion string, useCachePrefix bool) string {
 	version := osVersion
 	osType := Debian
 
@@ -105,6 +105,11 @@ func getAPTImageName(manifest *unversioned.UpdateManifest, osVersion string, use
 		return fmt.Sprintf("%s:%s", osType, version)
 	}
 	return fmt.Sprintf("%s/%s:%s", imageCachePrefix, osType, version)
+}
+
+// getAPTImageName is a wrapper for backward compatibility.
+func getAPTImageName(manifest *unversioned.UpdateManifest, osVersion string, useCachePrefix bool) string {
+	return GetAPTImageName(manifest, osVersion, useCachePrefix)
 }
 
 func getDPKGStatusType(b []byte) dpkgStatusType {

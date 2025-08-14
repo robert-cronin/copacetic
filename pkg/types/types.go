@@ -26,6 +26,7 @@ type PatchPlatform struct {
 	ispec.Platform
 	ReportFile     string `json:"reportFile"`
 	ShouldPreserve bool   `json:"shouldPreserve"`
+	PreserveReason string `json:"preserveReason,omitempty"`
 }
 
 // String returns a string representation of the PatchPlatform.

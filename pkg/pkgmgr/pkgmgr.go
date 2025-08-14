@@ -23,6 +23,9 @@ const (
 	unpackPath       = "/" + copaPrefix + "unpacked"
 	resultManifest   = "results.manifest"
 	imageCachePrefix = "ghcr.io/project-copacetic/copacetic"
+	cblMarinerOS     = "cbl-mariner"
+	azureLinuxOS     = "azurelinux"
+	oracleOS         = "oracle"
 )
 
 type PackageManager interface {
@@ -44,7 +47,7 @@ func GetPackageManager(osType string, osVersion string, config *buildkit.Config,
 			osVersion:     osVersion,
 			osType:        osType,
 		}, nil
-	case "cbl-mariner", "azurelinux", "centos", "oracle", "redhat", "rocky", "amazon", "alma", "almalinux":
+	case cblMarinerOS, azureLinuxOS, "centos", oracleOS, "redhat", "rocky", "amazon", "alma", "almalinux":
 		return &rpmManager{
 			config:        config,
 			workingFolder: workingFolder,
@@ -191,4 +194,49 @@ func tryImage(ctx context.Context, imageRef string, c client.Client, platform *o
 		return llb.State{}, fmt.Errorf("failed to resolve %s: %w", imageRef, err)
 	}
 	return st, nil
+}
+
+// CheckToolingImageSupport checks if a tooling image is available for the given platform.
+// It attempts both cached and non-cached versions of the tooling image.
+// Returns true if the platform is supported, false otherwise.
+func CheckToolingImageSupport(ctx context.Context, c client.Client, osType, osVersion string, platform *ocispecs.Platform, manifest *unversioned.UpdateManifest) bool {
+	var toolImageName string
+
+	// Determine the appropriate tooling image based on OS type
+	switch osType {
+	case "debian", "ubuntu":
+		// Try cached version first
+		toolImageName = GetAPTImageName(manifest, osVersion, true)
+		if _, err := tryImage(ctx, toolImageName, c, platform); err == nil {
+			return true
+		}
+		// Fallback to non-cached version
+		toolImageName = GetAPTImageName(manifest, osVersion, false)
+		if _, err := tryImage(ctx, toolImageName, c, platform); err == nil {
+			return true
+		}
+	case cblMarinerOS, "mariner", azureLinuxOS, "redhat", "rocky", "alma", oracleOS, "photon", "amazonlinux", "centos", "fedora":
+		// Try cached version first
+		toolImageName = GetRPMImageName(manifest, osType, osVersion, true)
+		if _, err := tryImage(ctx, toolImageName, c, platform); err == nil {
+			return true
+		}
+		// Fallback to non-cached version
+		toolImageName = GetRPMImageName(manifest, osType, osVersion, false)
+		if _, err := tryImage(ctx, toolImageName, c, platform); err == nil {
+			return true
+		}
+	case "alpine":
+		// Alpine uses the target image itself as the tooling image
+		// So it should always be supported if the target image exists
+		return true
+	default:
+		// Unknown OS type, assume not supported
+		log.Debugf("Unknown OS type %s for tooling image support check", osType)
+		return false
+	}
+
+	log.Debugf("No tooling image available for platform %s/%s on %s %s",
+		platform.OS, platform.Architecture, osType, osVersion)
+	return false
 }

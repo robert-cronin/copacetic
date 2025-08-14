@@ -14,10 +14,10 @@ import (
 	"github.com/project-copacetic/copacetic/pkg/types"
 )
 
-// for testing.
-var (
-	bkNewClient = buildkit.NewClient
-)
+// for testing - keep reference to buildkit.NewClient to allow test overrides
+//
+//nolint:unused
+var bkNewClient = buildkit.NewClient
 
 // Patch executes the patching workflow for a given set of options.
 func Patch(ctx context.Context, opts *types.Options) error {

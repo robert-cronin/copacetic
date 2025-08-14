@@ -56,13 +56,15 @@ func patchMultiPlatformImage(
 
 			// Create a map to track which platforms should be patched
 			shouldPatchMap := make(map[string]bool)
-			for _, p := range patchPlatforms {
+			for i := range patchPlatforms {
+				p := patchPlatforms[i]
 				key := buildkit.PlatformKey(p.Platform)
 				shouldPatchMap[key] = true
 			}
 
 			// Process all platforms, marking which should be patched vs preserved
-			for _, p := range discoveredPlatforms {
+			for i := range discoveredPlatforms {
+				p := discoveredPlatforms[i]
 				platformCopy := p
 				key := buildkit.PlatformKey(p.Platform)
 				if shouldPatchMap[key] {
@@ -72,6 +74,7 @@ func patchMultiPlatformImage(
 				} else {
 					// Platform should be preserved
 					platformCopy.ShouldPreserve = true
+					platformCopy.PreserveReason = "no_report"
 				}
 				platforms = append(platforms, platformCopy)
 			}
@@ -79,7 +82,8 @@ func patchMultiPlatformImage(
 			log.Infof("Patching specified platforms, preserving others")
 		} else {
 			// Patch all available platforms since no specific platforms were requested
-			for _, p := range discoveredPlatforms {
+			for i := range discoveredPlatforms {
+				p := discoveredPlatforms[i]
 				platformCopy := p
 				platformCopy.ReportFile = "" // No vulnerability report, just patch with latest packages
 				platformCopy.ShouldPreserve = false
@@ -97,9 +101,8 @@ func patchMultiPlatformImage(
 
 	summaryMap := make(map[string]*types.MultiPlatformSummary)
 
-	for _, p := range platforms {
-		// rebind
-		p := p //nolint
+	for i := range platforms {
+		p := platforms[i]
 		platformKey := buildkit.PlatformKey(p.Platform)
 		g.Go(func() error {
 			select {
@@ -173,12 +176,23 @@ func patchMultiPlatformImage(
 
 				mu.Lock()
 				patchResults = append(patchResults, result)
-				// Add summary entry for unpatched platform
+				// Add summary entry for unpatched platform based on reason
+				var message string
+				switch p.PreserveReason {
+				case "no_tooling":
+					message = "Preserved original image (Tooling not available for platform)"
+				case "user_specified":
+					message = "Preserved original image (User specified platform exclusion)"
+				case "no_report":
+					message = "Preserved original image (No Scan Report provided for platform)"
+				default:
+					message = "Preserved original image"
+				}
 				summaryMap[platformKey] = &types.MultiPlatformSummary{
 					Platform: platformKey,
 					Status:   "Not Patched",
 					Ref:      originalRef.String() + " (original reference)",
-					Message:  "Preserved original image (No Scan Report provided for platform)",
+					Message:  message,
 				}
 				mu.Unlock()
 				return nil
@@ -196,6 +210,53 @@ func patchMultiPlatformImage(
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
+				// Check if this is a tooling unavailability error
+				if isToolingUnavailableError(err) {
+					log.Warnf("No tooling image available for platform %s/%s, preserving original image: %v",
+						p.OS, p.Architecture, err)
+
+					// Treat as a preserved platform
+					originalRef, parseErr := reference.ParseNormalizedNamed(image)
+					if parseErr != nil {
+						summaryMap[platformKey] = &types.MultiPlatformSummary{
+							Platform: platformKey,
+							Status:   "Error",
+							Ref:      "",
+							Message:  fmt.Sprintf("failed to parse original image reference: %v", parseErr),
+						}
+						return parseErr
+					}
+
+					// Get the original platform descriptor from the manifest
+					originalDesc, descErr := getPlatformDescriptorFromManifest(image, &p)
+					if descErr != nil {
+						summaryMap[platformKey] = &types.MultiPlatformSummary{
+							Platform: platformKey,
+							Status:   "Error",
+							Ref:      "",
+							Message:  fmt.Sprintf("failed to get original descriptor for platform %s: %v", p.OS+"/"+p.Architecture, descErr),
+						}
+						return descErr
+					}
+
+					// Add the preserved platform to results
+					result := types.PatchResult{
+						OriginalRef: originalRef,
+						PatchedRef:  originalRef,
+						PatchedDesc: originalDesc,
+					}
+					patchResults = append(patchResults, result)
+
+					summaryMap[platformKey] = &types.MultiPlatformSummary{
+						Platform: platformKey,
+						Status:   "Not Patched",
+						Ref:      originalRef.String() + " (original reference)",
+						Message:  "Preserved original image (Tooling not available for platform)",
+					}
+					return nil
+				}
+
+				// Handle other errors normally
 				status := "Error"
 				if ignoreError {
 					status = "Ignored"
@@ -300,7 +361,8 @@ func patchMultiPlatformImage(
 	w := tabwriter.NewWriter(&b, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, "PLATFORM\tSTATUS\tREFERENCE\tMESSAGE")
 
-	for _, p := range platforms {
+	for i := range platforms {
+		p := platforms[i]
 		platformKey := buildkit.PlatformKey(p.Platform)
 		s := summaryMap[platformKey]
 		if s != nil {
@@ -315,4 +377,19 @@ func patchMultiPlatformImage(
 	log.Info("\nMulti-arch patch summary:\n" + b.String())
 
 	return nil
+}
+
+// isToolingUnavailableError checks if an error indicates that tooling images are unavailable for a platform.
+// This typically manifests as "no match for platform in manifest" errors.
+func isToolingUnavailableError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := strings.ToLower(err.Error())
+
+	// Check for common error patterns that indicate platform unavailability
+	return strings.Contains(errStr, "no match for platform in manifest") ||
+		strings.Contains(errStr, "not found") && strings.Contains(errStr, "platform") ||
+		strings.Contains(errStr, "failed to resolve") && strings.Contains(errStr, "platform")
 }

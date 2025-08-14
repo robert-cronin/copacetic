@@ -81,7 +81,8 @@ func filterPlatforms(discoveredPlatforms []types.PatchPlatform, targetPlatforms 
 		}
 		targetPlatform = platforms.Normalize(targetPlatform)
 
-		for _, discovered := range discoveredPlatforms {
+		for i := range discoveredPlatforms {
+			discovered := discoveredPlatforms[i]
 			if platforms.Only(targetPlatform).Match(discovered.Platform) {
 				filtered = append(filtered, discovered)
 				break

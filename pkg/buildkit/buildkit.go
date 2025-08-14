@@ -297,11 +297,13 @@ func DiscoverPlatforms(manifestRef, reportDir, scanner string) ([]types.PatchPla
 
 		// include all platforms from original manifest, patching only those with reports
 		reportSet := make(map[string]string, len(p2))
-		for _, pl := range p2 {
+		for i := range p2 {
+			pl := p2[i]
 			reportSet[PlatformKey(pl.Platform)] = pl.ReportFile
 		}
 
-		for _, pl := range p {
+		for i := range p {
+			pl := p[i]
 			if rp, ok := reportSet[PlatformKey(pl.Platform)]; ok {
 				// Platform has a report - will be patched
 				pl.ReportFile = rp

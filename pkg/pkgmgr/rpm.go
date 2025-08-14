@@ -110,8 +110,8 @@ func isLessThanRPMVersion(v1, v2 string) bool {
 	return rpmV1.LessThan(rpmV2)
 }
 
-// Map the target image OSType & OSVersion to an appropriate tooling image.
-func getRPMImageName(manifest *unversioned.UpdateManifest, osType string, osVersion string, useCachePrefix bool) string {
+// GetRPMImageName maps the target image OSType & OSVersion to an appropriate tooling image.
+func GetRPMImageName(manifest *unversioned.UpdateManifest, osType string, osVersion string, useCachePrefix bool) string {
 	var image, version string
 
 	if osType == "azurelinux" {
@@ -142,6 +142,11 @@ func getRPMImageName(manifest *unversioned.UpdateManifest, osType string, osVers
 		imagePrefix = imageCachePrefix
 	}
 	return fmt.Sprintf("%s/%s:%s", imagePrefix, image, version)
+}
+
+// getRPMImageName is a wrapper for backward compatibility.
+func getRPMImageName(manifest *unversioned.UpdateManifest, osType string, osVersion string, useCachePrefix bool) string {
+	return GetRPMImageName(manifest, osType, osVersion, useCachePrefix)
 }
 
 func parseRPMTools(b []byte) (rpmToolPaths, error) {
