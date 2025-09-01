@@ -1,14 +1,17 @@
 package buildkit
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -16,6 +19,7 @@ import (
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/client/llb/sourceresolver"
+	"github.com/moby/buildkit/exporter/containerimage/exptypes"
 	gwclient "github.com/moby/buildkit/frontend/gateway/client"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	ispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -845,56 +849,167 @@ func solveMultiPlatformOCI(ctx context.Context, c *client.Client, outputDir stri
 		return fmt.Errorf("no platform states provided")
 	}
 	
-	// Create a merged multi-platform state
-	// We need to create a single LLB definition that includes all platforms
-	var mergedDefs []*llb.Definition
+	// Remove output directory if it exists
+	os.RemoveAll(outputDir)
 	
-	for i, state := range platformStates {
-		platform := platformSpecs[i]
-		log.Debugf("Creating definition for platform %s", platforms.Format(platform))
-		
-		// Marshal each platform state to a definition
-		def, err := state.Marshal(ctx, llb.Platform(platform))
-		if err != nil {
-			return fmt.Errorf("failed to marshal LLB state for platform %s: %w", platforms.Format(platform), err)
-		}
-		
-		mergedDefs = append(mergedDefs, def)
+	// Create solve options for OCI export using Output function instead of OutputDir
+	// This avoids the diffcopy method issue by providing a writer interface
+	solveOpt := client.SolveOpt{
+		Exports: []client.ExportEntry{{
+			Type: client.ExporterOCI,
+			Attrs: map[string]string{
+				"oci-mediatypes": "true",
+			},
+			Output: func(map[string]string) (io.WriteCloser, error) {
+				// Create a tar file that we'll extract to the OCI layout
+				tarFile, err := os.Create(outputDir + ".tar")
+				if err != nil {
+					return nil, fmt.Errorf("failed to create OCI tar file: %w", err)
+				}
+				return tarFile, nil
+			},
+		}},
 	}
 	
-	// For multi-platform builds, we need to create a single definition that encompasses all platforms
-	// Let's start with the first platform as the base and extend it for multi-platform
-	if len(mergedDefs) > 0 {
-		baseDef := mergedDefs[0]
+	// Use Build() with gateway client callback pattern (same as Copa's existing usage)
+	buildChannel := make(chan *client.SolveStatus)
+	// Start a goroutine to consume status updates (we don't need to display them for OCI export)
+	go func() {
+		for range buildChannel {
+			// Consume status updates silently
+		}
+	}()
+	
+	_, err := c.Build(ctx, solveOpt, "copa-oci-export", func(ctx context.Context, gw gwclient.Client) (*gwclient.Result, error) {
+		// Create result to hold all platform states
+		res := gwclient.NewResult()
+		var expPlatforms exptypes.Platforms
 		
-		log.Infof("Creating multi-platform build definition from %d platforms", len(mergedDefs))
-		
-		// Remove output directory if it exists
-		os.RemoveAll(outputDir)
-		
-		// Create solve options using Copa's pattern
-		solveOpt := client.SolveOpt{
-			Frontend: "", // passing LLB definition directly  
-			Exports: []client.ExportEntry{{
-				Type:      client.ExporterOCI,
-				Attrs:     map[string]string{
-					"oci-mediatypes": "true",
-				},
-				OutputDir: outputDir,
-			}},
+		// Process each platform
+		for i, state := range platformStates {
+			platform := platformSpecs[i]
+			platformKey := platforms.Format(platform)
+			log.Debugf("Processing platform %s for OCI export", platformKey)
+			
+			// Marshal the state with platform constraint
+			def, err := state.Marshal(ctx, llb.Platform(platform))
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal LLB state for platform %s: %w", platformKey, err)
+			}
+			
+			// Solve the definition to get a reference
+			r, err := gw.Solve(ctx, gwclient.SolveRequest{
+				Definition: def.ToPB(),
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to solve for platform %s: %w", platformKey, err)
+			}
+			
+			ref, err := r.SingleRef()
+			if err != nil {
+				return nil, fmt.Errorf("failed to get reference for platform %s: %w", platformKey, err)
+			}
+			
+			// Add the reference for this platform
+			res.AddRef(platformKey, ref)
+			log.Debugf("Added reference for platform %s", platformKey)
+			
+			// Add platform metadata using the correct exptypes structure
+			expPlatforms.Platforms = append(expPlatforms.Platforms, exptypes.Platform{
+				ID:       platformKey,
+				Platform: platform,
+			})
 		}
 		
-		// Solve with basic export using the corrected BuildKit client API
-		_, err := c.Solve(ctx, baseDef, solveOpt, nil)
+		// Add platform metadata for multi-platform manifest (same as frontend)
+		if len(platformSpecs) > 1 {
+			log.Infof("Creating multi-platform manifest with %d platforms", len(platformSpecs))
+		}
+		
+		// Always add platform metadata for consistency (same as frontend)
+		dt, err := json.Marshal(expPlatforms)
 		if err != nil {
-			return fmt.Errorf("BuildKit solve failed: %w", err)
+			return nil, fmt.Errorf("failed to marshal platforms: %w", err)
 		}
+		res.AddMeta(exptypes.ExporterPlatformsKey, dt)
 		
-		log.Infof("Successfully created OCI layout in %s using BuildKit Go client", outputDir)
-		return nil
+		return res, nil
+	}, buildChannel)
+	
+	if err != nil {
+		return fmt.Errorf("BuildKit build failed: %w", err)
 	}
 	
-	return fmt.Errorf("no definitions created")
+	// Extract the OCI tar file to the output directory
+	tarPath := outputDir + ".tar"
+	if err := extractOCITar(tarPath, outputDir); err != nil {
+		return fmt.Errorf("failed to extract OCI tar: %w", err)
+	}
+	
+	// Clean up the tar file
+	os.Remove(tarPath)
+	
+	log.Infof("Successfully created OCI layout in %s", outputDir)
+	return nil
+}
+
+// extractOCITar extracts an OCI layout tar file to a directory.
+func extractOCITar(tarPath, outputDir string) error {
+	// Create output directory
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+	
+	// Open tar file
+	file, err := os.Open(tarPath)
+	if err != nil {
+		return fmt.Errorf("failed to open tar file: %w", err)
+	}
+	defer file.Close()
+	
+	// Create tar reader
+	tr := tar.NewReader(file)
+	
+	// Extract all files
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			break // End of tar file
+		}
+		if err != nil {
+			return fmt.Errorf("failed to read tar header: %w", err)
+		}
+		
+		// Build target path
+		targetPath := filepath.Join(outputDir, header.Name)
+		
+		// Create directory for file if needed
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+			return fmt.Errorf("failed to create directory for %s: %w", targetPath, err)
+		}
+		
+		switch header.Typeflag {
+		case tar.TypeDir:
+			// Create directory
+			if err := os.MkdirAll(targetPath, os.FileMode(header.Mode)); err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
+			}
+		case tar.TypeReg:
+			// Create regular file
+			outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, os.FileMode(header.Mode))
+			if err != nil {
+				return fmt.Errorf("failed to create file %s: %w", targetPath, err)
+			}
+			
+			if _, err := io.Copy(outFile, tr); err != nil {
+				outFile.Close()
+				return fmt.Errorf("failed to copy content to %s: %w", targetPath, err)
+			}
+			outFile.Close()
+		}
+	}
+	
+	return nil
 }
 
 // getPlatformSuffix returns the expected image tag suffix for a platform.
