@@ -682,3 +682,52 @@ func TestPatchLevelVersionSelection(t *testing.T) {
 		})
 	}
 }
+
+// TestNewTrivyParser tests the NewTrivyParser constructor function.
+func TestNewTrivyParser(t *testing.T) {
+	parser := NewTrivyParser()
+	assert.NotNil(t, parser)
+	assert.IsType(t, &TrivyParser{}, parser)
+}
+
+// TestTrivyParserParseEdgeCases tests edge cases for TrivyParser.Parse.
+func TestTrivyParserParseEdgeCases(t *testing.T) {
+	testCases := []struct {
+		name        string
+		file        string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:        "non-existent file",
+			file:        "non-existent-file.json",
+			wantErr:     true,
+			errContains: "no such file or directory",
+		},
+		{
+			name:        "invalid JSON file",
+			file:        "testdata/invalid.json",
+			wantErr:     true,
+			errContains: "",
+		},
+	}
+
+	parser := NewTrivyParser()
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := parser.Parse(tc.file)
+
+			if tc.wantErr {
+				assert.Error(t, err)
+				if tc.errContains != "" {
+					assert.Contains(t, err.Error(), tc.errContains)
+				}
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+			}
+		})
+	}
+}
