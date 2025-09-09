@@ -66,25 +66,20 @@ type VersionComparer struct {
 
 func GetUniqueLatestUpdates(updates unversioned.UpdatePackages, cmp VersionComparer, ignoreErrors bool) (unversioned.UpdatePackages, error) {
 	if len(updates) == 0 {
-		return unversioned.UpdatePackages{}, nil
+		return nil, fmt.Errorf("no patchable vulnerabilities found")
 	}
 
 	dict := make(map[string]string)
 	var allErrors *multierror.Error
 	for _, u := range updates {
-		switch {
-		case u.FixedVersion == "":
-			// No suitable version found due to patch level restrictions, skip this update
-			log.Debugf("Skipping package %s: no suitable version found according to patch level restrictions", u.Name)
-			continue
-		case cmp.IsValid(u.FixedVersion):
+		if cmp.IsValid(u.FixedVersion) {
 			ver, ok := dict[u.Name]
 			if !ok {
 				dict[u.Name] = u.FixedVersion
 			} else if cmp.LessThan(ver, u.FixedVersion) {
 				dict[u.Name] = u.FixedVersion
 			}
-		default:
+		} else {
 			err := fmt.Errorf("invalid version %s found for package %s", u.FixedVersion, u.Name)
 			log.Error(err)
 			allErrors = multierror.Append(allErrors, err)
