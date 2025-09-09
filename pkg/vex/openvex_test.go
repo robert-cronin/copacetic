@@ -179,7 +179,6 @@ func TestOpenVex_CreateVEXDocument(t *testing.T) {
 `,
 			wantErr: false,
 		},
-		// (lang update coverage moved to separate isolated test to avoid cross-test state dependence)
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -33,7 +33,7 @@ permissions:
 jobs:
   unit-test:
     name: Unit Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-16-cores
     timeout-minutes: 5
     steps:
       - name: Harden Runner
@@ -61,14 +61,11 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
   build:
     name: Build
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest-16-cores
     timeout-minutes: 5
     permissions:
       packages: write
       contents: read
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.3.1
@@ -104,7 +101,7 @@ jobs:
   test-patch-trivy:
     needs: build
     name: Test patch with trivy ${{ matrix.buildkit_mode }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-16-cores
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -150,7 +147,7 @@ jobs:
   test-patch-no-report:
     needs: build
     name: Test patch no report ${{ matrix.buildkit_mode }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-16-cores
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -274,7 +271,7 @@ jobs:
   test-plugin:
     needs: build
     name: Test plugin
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-16-cores
     timeout-minutes: 5
     steps:
       - name: Harden Runner
@@ -321,7 +318,7 @@ jobs:
   test-push:
     needs: build
     name: Test push
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-16-cores
     timeout-minutes: 5
     steps:
       - name: Check out code
@@ -368,22 +365,13 @@ jobs:
   test-patch-multiplatform:
     needs: build
     name: Test patch with multiplatform ${{ matrix.buildkit_mode }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-16-cores
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
         buildkit_mode: ${{fromJson(needs.build.outputs.multiplatformenvs)}}
     steps:
-      - uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
-        with:
-          tool-cache: true
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
       - name: Change docker daemon config
         run: |
           echo '{"features": { "containerd-snapshotter": true }, "insecure-registries": ["localhost:5000"]}' | sudo tee /etc/docker/daemon.json
@@ -461,7 +449,7 @@ jobs:
   test-patch-multiplatform-plugin:
     needs: build
     name: Test multiplatform with plugin
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-16-cores
     timeout-minutes: 50
     steps:
       - name: Change docker daemon config
