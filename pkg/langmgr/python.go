@@ -18,10 +18,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const (
-	// pipInstallTimeoutSeconds defines the timeout for pip install operations in seconds.
-	pipInstallTimeoutSeconds = 300
-)
+const defaultPipInstallTimeoutSeconds = 300
 
 type pythonManager struct {
 	config        *buildkit.Config
@@ -397,7 +394,7 @@ func (pm *pythonManager) installPackagesWithErrorHandling(currentState *llb.Stat
 		// Use printf to avoid shell injection - spec is already validated
 		installCommands = append(installCommands,
 			fmt.Sprintf(`pip install --timeout %d '%s' || printf "WARN: pip install failed for %s\n"`,
-				pipInstallTimeoutSeconds, spec, spec))
+				defaultPipInstallTimeoutSeconds, spec, spec))
 	}
 	installCmd := fmt.Sprintf(`sh -c '%s'`, strings.Join(installCommands, "; "))
 	return currentState.Run(
@@ -409,7 +406,7 @@ func (pm *pythonManager) installPackagesWithErrorHandling(currentState *llb.Stat
 // installPackagesStandard installs packages in a single pip command.
 func (pm *pythonManager) installPackagesStandard(currentState *llb.State, packageSpecs []string) llb.State {
 	// Build a single pip install command with all validated package specifications
-	args := []string{"pip", "install", fmt.Sprintf("--timeout=%d", pipInstallTimeoutSeconds)}
+	args := []string{"pip", "install", fmt.Sprintf("--timeout=%d", defaultPipInstallTimeoutSeconds)}
 	args = append(args, packageSpecs...)
 
 	return currentState.Run(

@@ -1,9 +1,11 @@
+// Package report contains parsers and helpers for vulnerability scan reports (e.g., Trivy).
 package report
 
 import (
 	"encoding/json"
 	"errors"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -324,6 +326,8 @@ func (t *TrivyParser) ParseWithLibraryPatchLevel(file, libraryPatchLevel string)
 	// Process Language packages - group by package name to find optimal fixed version
 	langPackageVulns := make(map[string][]trivyTypes.DetectedVulnerability)
 	langPackageInfo := make(map[string]unversioned.UpdatePackage)
+	// track all vulnerability IDs per lang package for VEX emission
+	langPackageVulnIDs := make(map[string]map[string]struct{})
 
 	for i := range report.Results {
 		r := &report.Results[i]
@@ -335,7 +339,7 @@ func (t *TrivyParser) ParseWithLibraryPatchLevel(file, libraryPatchLevel string)
 				if vuln.FixedVersion != "" {
 					updates.OSUpdates = append(updates.OSUpdates, unversioned.UpdatePackage{
 						Name:             vuln.PkgName,
-						Type:             string(r.Type),
+						Type:             utils.CanonicalPkgManagerType(string(r.Type)),
 						Class:            string(r.Class),
 						FixedVersion:     vuln.FixedVersion,
 						InstalledVersion: vuln.InstalledVersion,
@@ -356,12 +360,16 @@ func (t *TrivyParser) ParseWithLibraryPatchLevel(file, libraryPatchLevel string)
 							langPackageVulns[vuln.PkgName] = []trivyTypes.DetectedVulnerability{}
 							langPackageInfo[vuln.PkgName] = unversioned.UpdatePackage{
 								Name:             vuln.PkgName,
-								Type:             string(r.Type),
+								Type:             utils.CanonicalPkgManagerType(string(r.Type)),
 								Class:            string(r.Class),
 								InstalledVersion: vuln.InstalledVersion,
 							}
+							langPackageVulnIDs[vuln.PkgName] = make(map[string]struct{})
 						}
 						langPackageVulns[vuln.PkgName] = append(langPackageVulns[vuln.PkgName], *vuln)
+						if vuln.VulnerabilityID != "" {
+							langPackageVulnIDs[vuln.PkgName][vuln.VulnerabilityID] = struct{}{}
+						}
 					}
 				}
 			}
@@ -390,7 +398,11 @@ func (t *TrivyParser) ParseWithLibraryPatchLevel(file, libraryPatchLevel string)
 		}
 
 		if len(fixedVersions) > 0 {
-			info := langPackageInfo[pkgName]
+			info, ok := langPackageInfo[pkgName]
+			if !ok {
+				// Defensive: skip if info not recorded (shouldn't happen)
+				continue
+			}
 
 			// Determine patch level to use, with special handling for certain packages
 			patchLevelToUse := libraryPatchLevel
@@ -399,8 +411,20 @@ func (t *TrivyParser) ParseWithLibraryPatchLevel(file, libraryPatchLevel string)
 			}
 
 			optimalVersion := FindOptimalFixedVersionWithPatchLevel(info.InstalledVersion, fixedVersions, patchLevelToUse)
-			info.FixedVersion = optimalVersion
-			updates.LangUpdates = append(updates.LangUpdates, info)
+			if idsMap, ok2 := langPackageVulnIDs[pkgName]; ok2 {
+				var ids []string
+				for id := range idsMap { ids = append(ids, id) }
+				sort.Strings(ids)
+				for _, vid := range ids {
+					clone := info
+					clone.FixedVersion = optimalVersion
+					clone.VulnerabilityID = vid
+					updates.LangUpdates = append(updates.LangUpdates, clone)
+				}
+			} else {
+				info.FixedVersion = optimalVersion
+				updates.LangUpdates = append(updates.LangUpdates, info)
+			}
 		}
 	}
 

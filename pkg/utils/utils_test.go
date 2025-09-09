@@ -228,6 +228,43 @@ func TestDeduplicateStringSlice(t *testing.T) {
 	}
 }
 
+func TestCanonicalPkgManagerType(t *testing.T) {
+	tests := map[string]string{
+		"apk":          "apk",
+		"alpine":       "apk",
+		"AlPiNe":       "apk",
+		"deb":          "deb",
+		"debian":       "deb",
+		"ubuntu":       "deb",
+		"rpm":          "rpm",
+		"centos":       "rpm",
+		"rocky":        "rpm",
+		"alma":         "rpm",
+		"almalinux":    "rpm",
+		"rhel":         "rpm",
+		"amzn":         "rpm",
+		"amazon":       "rpm",
+		"oracle":       "rpm",
+		"ol":           "rpm",
+		"photon":       "rpm",
+		"mariner":      "rpm",
+		"cbl-mariner":  "rpm",
+			"azurelinux":   "rpm",
+			"azure-linux":  "rpm",
+			"azure":        "rpm",
+		"suse":         "rpm",
+		"sles":         "rpm",
+		"opensuse":     "rpm",
+		"fedora":       "rpm",
+		"unknown-disto": "unknown-disto", // passthrough
+	}
+	for raw, want := range tests {
+		if got := CanonicalPkgManagerType(raw); got != want {
+			t.Fatalf("CanonicalPkgManagerType(%q)=%q want %q", raw, got, want)
+		}
+	}
+}
+
 // TestLocalImageDescriptor tests the localImageDescriptor function with error scenarios.
 func TestLocalImageDescriptor(t *testing.T) {
 	ctx := context.Background()
