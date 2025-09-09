@@ -12,7 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// test seams for time and id generation
+// test seams for time and id generation.
 var (
 	now        = time.Now
 	generateID = func(doc *vex.VEX) (string, error) { return doc.GenerateCanonicalID() }
@@ -89,8 +89,8 @@ func (o *OpenVex) CreateVEXDocument(
 			if doc.Statements[i].Vulnerability.ID == u.VulnerabilityID {
 				// deduplicate identical subcomponent IDs
 				for _, existing := range doc.Statements[i].Products[0].Subcomponents {
-					if existing.Component.ID == subComponent.Component.ID {
-						log.Debugf("duplicate subcomponent %s ignored", subComponent.Component.ID)
+					if existing.ID == subComponent.ID {
+						log.Debugf("duplicate subcomponent %s ignored", subComponent.ID)
 						return
 					}
 				}

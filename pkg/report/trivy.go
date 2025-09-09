@@ -413,7 +413,9 @@ func (t *TrivyParser) ParseWithLibraryPatchLevel(file, libraryPatchLevel string)
 			optimalVersion := FindOptimalFixedVersionWithPatchLevel(info.InstalledVersion, fixedVersions, patchLevelToUse)
 			if idsMap, ok2 := langPackageVulnIDs[pkgName]; ok2 {
 				var ids []string
-				for id := range idsMap { ids = append(ids, id) }
+				for id := range idsMap {
+					ids = append(ids, id)
+				}
 				sort.Strings(ids)
 				for _, vid := range ids {
 					clone := info

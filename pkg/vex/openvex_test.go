@@ -26,7 +26,7 @@ func TestOpenVex_CreateVEXDocument(t *testing.T) {
 	now = func() time.Time { return expectedTime }
 
 	// mock id
-	generateID = func(doc *vex.VEX) (string, error) { return "https://openvex.dev/test", nil }
+	generateID = func(_ *vex.VEX) (string, error) { return "https://openvex.dev/test", nil }
 
 	type args struct {
 		updates          *unversioned.UpdateManifest
@@ -191,7 +191,7 @@ func TestOpenVex_CreateVEXDocument(t *testing.T) {
 				return
 			}
 			if !jsonEqual(got, tt.want) {
-				 t.Errorf("OpenVex.CreateVEXDocument() JSON mismatch. got=%s want=%s", got, tt.want)
+				t.Errorf("OpenVex.CreateVEXDocument() JSON mismatch. got=%s want=%s", got, tt.want)
 			}
 		})
 	}
@@ -214,7 +214,7 @@ func TestOpenVex_CreateVEXDocument_LangUpdates(t *testing.T) {
 	defer func() { now = backupNow }()
 
 	backupID := generateID
-	generateID = func(doc *vex.VEX) (string, error) { return "https://openvex.dev/langtest", nil }
+	generateID = func(_ *vex.VEX) (string, error) { return "https://openvex.dev/langtest", nil }
 	defer func() { generateID = backupID }()
 
 	updates := &unversioned.UpdateManifest{
@@ -252,10 +252,10 @@ func TestOpenVex_CreateVEXDocument_LangUpdates(t *testing.T) {
 
 	// Minimal assertions: ensure vulnerability id present and python package id included, and skipped entry absent.
 	if !containsAll(got, []string{"GHSA-xxxx-yyyy-zzzz", "pkg:pypi/requests@2.32.3"}) {
-		 t.Errorf("expected lang update identifiers not found in output: %s", got)
+		t.Errorf("expected lang update identifiers not found in output: %s", got)
 	}
 	if strings.Contains(got, "pkg:pypi/idna@3.7") {
-		 t.Errorf("idna package with empty vulnerability id should have been skipped: %s", got)
+		t.Errorf("idna package with empty vulnerability id should have been skipped: %s", got)
 	}
 }
 
@@ -269,14 +269,14 @@ func TestOpenVex_PurlPerOSType(t *testing.T) {
 	now = func() time.Time { return expectedTime }
 	defer func() { now = backupNow }()
 	backupID := generateID
-	generateID = func(doc *vex.VEX) (string, error) { return "https://openvex.dev/purlos", nil }
+	generateID = func(_ *vex.VEX) (string, error) { return "https://openvex.dev/purlos", nil }
 	defer func() { generateID = backupID }()
 
 	type tc struct {
-		name          string
-		osType        string
-		pkgMgrType    string // expected manager.GetPackageType()
-		expectedPurl  string
+		name         string
+		osType       string
+		pkgMgrType   string // expected manager.GetPackageType()
+		expectedPurl string
 	}
 
 	config := &buildkit.Config{}
@@ -317,7 +317,9 @@ func TestOpenVex_PurlPerOSType(t *testing.T) {
 				Metadata: unversioned.Metadata{OS: unversioned.OS{Type: cse.osType}, Config: unversioned.Config{Arch: "x86_64"}},
 			}
 			got, err := (&OpenVex{}).CreateVEXDocument(updates, "example.io/image:tag", pkgType)
-			if err != nil { t.Fatalf("unexpected error: %v", err) }
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 			if !strings.Contains(got, cse.expectedPurl) {
 				t.Fatalf("expected purl %s not found in output: %s", cse.expectedPurl, got)
 			}
@@ -339,23 +341,41 @@ func containsAll(s string, subs []string) bool {
 func jsonEqual(a, b string) bool {
 	var ja any
 	var jb any
-	if err := json.Unmarshal([]byte(a), &ja); err != nil { return false }
-	if err := json.Unmarshal([]byte(b), &jb); err != nil { return false }
+	if err := json.Unmarshal([]byte(a), &ja); err != nil {
+		return false
+	}
+	if err := json.Unmarshal([]byte(b), &jb); err != nil {
+		return false
+	}
 	return deepEqualJSON(ja, jb)
 }
 
 // deepEqualJSON performs a semantic comparison accounting for map key ordering.
 func deepEqualJSON(a, b any) bool {
 	switch av := a.(type) {
-case map[string]any:
-	bv, ok := b.(map[string]any); if !ok || len(av) != len(bv) { return false }
-	for k, v := range av { if !deepEqualJSON(v, bv[k]) { return false } }
-	return true
-case []any:
-	bv, ok := b.([]any); if !ok || len(av) != len(bv) { return false }
-	for i := range av { if !deepEqualJSON(av[i], bv[i]) { return false } }
-	return true
-default:
-	return a == b
-}
+	case map[string]any:
+		bv, ok := b.(map[string]any)
+		if !ok || len(av) != len(bv) {
+			return false
+		}
+		for k, v := range av {
+			if !deepEqualJSON(v, bv[k]) {
+				return false
+			}
+		}
+		return true
+	case []any:
+		bv, ok := b.([]any)
+		if !ok || len(av) != len(bv) {
+			return false
+		}
+		for i := range av {
+			if !deepEqualJSON(av[i], bv[i]) {
+				return false
+			}
+		}
+		return true
+	default:
+		return a == b
+	}
 }

@@ -43,32 +43,33 @@ const (
 // unknown value, it is returned unchanged.
 //
 // Examples:
-//   alpine     -> apk
-//   debian     -> deb
-//   ubuntu     -> deb
-//   centos     -> rpm
-//   almalinux  -> rpm
-//   rocky      -> rpm
-//   rhel       -> rpm
-//   amzn|amazon-> rpm
-//   oracle|ol  -> rpm
-//   photon     -> rpm
-//   mariner|cbl-mariner -> rpm
-//   suse|sles|opensuse -> rpm
+//
+//	alpine     -> apk
+//	debian     -> deb
+//	ubuntu     -> deb
+//	centos     -> rpm
+//	almalinux  -> rpm
+//	rocky      -> rpm
+//	rhel       -> rpm
+//	amzn|amazon-> rpm
+//	oracle|ol  -> rpm
+//	photon     -> rpm
+//	mariner|cbl-mariner -> rpm
+//	suse|sles|opensuse -> rpm
 func CanonicalPkgManagerType(raw string) string {
 	switch strings.ToLower(raw) { // normalize case defensively
-case "apk", "deb", "rpm":
-	// already canonical
-	return raw
-case "alpine":
-	return "apk"
-case "debian", "ubuntu":
-	return "deb"
-case "centos", "rocky", "alma", "almalinux", "rhel", "redhat", "amzn", "amazon", "oracle", "ol", "photon", "mariner", "cbl-mariner", "azurelinux", "azure-linux", "azure", "suse", "sles", "opensuse", "fedora":
-	return "rpm"
-default:
-	return raw
-}
+	case "apk", "deb", "rpm":
+		// already canonical
+		return raw
+	case "alpine":
+		return "apk"
+	case "debian", "ubuntu":
+		return "deb"
+	case "centos", "rocky", "alma", "almalinux", "rhel", "redhat", "amzn", "amazon", "oracle", "ol", "photon", "mariner", "cbl-mariner", "azurelinux", "azure-linux", "azure", "suse", "sles", "opensuse", "fedora":
+		return "rpm"
+	default:
+		return raw
+	}
 }
 
 // DeduplicateStringSlice removes duplicate strings from a slice while preserving order.
