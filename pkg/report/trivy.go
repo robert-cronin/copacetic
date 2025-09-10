@@ -339,7 +339,7 @@ func (t *TrivyParser) ParseWithLibraryPatchLevel(file, libraryPatchLevel string)
 				if vuln.FixedVersion != "" {
 					updates.OSUpdates = append(updates.OSUpdates, unversioned.UpdatePackage{
 						Name:             vuln.PkgName,
-						Type:             utils.CanonicalPkgManagerType(string(r.Type)),
+						Type:             string(r.Type),
 						Class:            string(r.Class),
 						FixedVersion:     vuln.FixedVersion,
 						InstalledVersion: vuln.InstalledVersion,
@@ -360,7 +360,7 @@ func (t *TrivyParser) ParseWithLibraryPatchLevel(file, libraryPatchLevel string)
 							langPackageVulns[vuln.PkgName] = []trivyTypes.DetectedVulnerability{}
 							langPackageInfo[vuln.PkgName] = unversioned.UpdatePackage{
 								Name:             vuln.PkgName,
-								Type:             utils.CanonicalPkgManagerType(string(r.Type)),
+								Type:             string(r.Type),
 								Class:            string(r.Class),
 								InstalledVersion: vuln.InstalledVersion,
 							}

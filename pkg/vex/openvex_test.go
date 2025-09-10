@@ -16,9 +16,8 @@ import (
 
 func TestOpenVex_CreateVEXDocument(t *testing.T) {
 	config := &buildkit.Config{}
-	workingFolder := utils.DefaultTempWorkingFolder
-	alpineManager, _ := pkgmgr.GetPackageManager("alpine", "", config, workingFolder)
-	debianManager, _ := pkgmgr.GetPackageManager("debian", "", config, workingFolder)
+	alpineManager, _ := pkgmgr.GetPackageManager("alpine", "", config, utils.DefaultTempWorkingFolder)
+	debianManager, _ := pkgmgr.GetPackageManager("debian", "", config, utils.DefaultTempWorkingFolder)
 	patchedImageName := "foo.io/bar:latest"
 	t.Setenv("COPA_VEX_AUTHOR", "test author")
 
@@ -280,7 +279,6 @@ func TestOpenVex_PurlPerOSType(t *testing.T) {
 	}
 
 	config := &buildkit.Config{}
-	workingFolder := utils.DefaultTempWorkingFolder
 
 	cases := []tc{
 		// apk based
@@ -302,7 +300,7 @@ func TestOpenVex_PurlPerOSType(t *testing.T) {
 	for _, cse := range cases {
 		t.Run(cse.name, func(t *testing.T) {
 			// Acquire a manager to supply pkgType if supported; fall back to expected pkgMgrType if not.
-			mgr, _ := pkgmgr.GetPackageManager(cse.osType, "", config, workingFolder)
+			mgr, _ := pkgmgr.GetPackageManager(cse.osType, "", config, utils.DefaultTempWorkingFolder)
 			pkgType := cse.pkgMgrType
 			if mgr != nil {
 				pkgType = mgr.GetPackageType()

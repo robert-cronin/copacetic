@@ -71,13 +71,11 @@ func (o *OpenVex) CreateVEXDocument(
 			return
 		}
 		// choose package type: prefer provided pkgType (OS) if u.Type is empty, else use u.Type (e.g. python-pkg)
-		pt := utils.CanonicalPkgManagerType(pkgType)
-		if u.Type != "" {
-			pt = utils.CanonicalPkgManagerType(u.Type)
-		}
+		pt := utils.CanonicalPkgManagerType(pkgType) // base OS package manager type (apk, deb, rpm)
+		langType := u.Type
 
 		var componentID string
-		if pt == utils.PythonPackages { // treat python-pkg as coming from PyPI for purl standardization
+		if langType == utils.PythonPackages { // treat python-pkg as coming from PyPI for purl standardization
 			// Standard PyPI purl form: pkg:pypi/<name>@<version>
 			componentID = "pkg:pypi/" + u.Name + "@" + u.FixedVersion
 		} else {
