@@ -19,6 +19,7 @@ import (
 
 	"github.com/project-copacetic/copacetic/mocks"
 	"github.com/project-copacetic/copacetic/pkg/types"
+	"github.com/project-copacetic/copacetic/pkg/utils"
 
 	"github.com/stretchr/testify/mock"
 
@@ -96,7 +97,7 @@ func newMockBuildkitAPI(t *testing.T, caps ...apicaps.CapID) string {
 	var sockPath string
 	if runtime.GOOS == goosDarwin {
 		// On macOS, use /tmp directly for shorter paths to avoid socket path length limits
-		sockPath = filepath.Join("/tmp", fmt.Sprintf("bk-%d.sock", time.Now().UnixNano()))
+		sockPath = filepath.Join(utils.DefaultTempWorkingFolder, fmt.Sprintf("bk-%d.sock", time.Now().UnixNano()))
 	} else {
 		// On other platforms, use temp dir but with shorter name
 		tmp := t.TempDir()

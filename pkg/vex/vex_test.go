@@ -6,11 +6,12 @@ import (
 	"github.com/project-copacetic/copacetic/pkg/buildkit"
 	"github.com/project-copacetic/copacetic/pkg/pkgmgr"
 	"github.com/project-copacetic/copacetic/pkg/types/unversioned"
+	"github.com/project-copacetic/copacetic/pkg/utils"
 )
 
 func TestTryOutputVexDocument(t *testing.T) {
 	config := &buildkit.Config{}
-	workingFolder := "/tmp"
+	workingFolder := utils.DefaultTempWorkingFolder
 	alpineManager, _ := pkgmgr.GetPackageManager("alpine", "", config, workingFolder)
 	patchedImageName := "patched"
 

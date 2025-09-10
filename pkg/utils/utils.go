@@ -34,6 +34,8 @@ const (
 	// Package types for language managers.
 	LangPackages   = "lang-pkgs"
 	PythonPackages = "python-pkg"
+
+	DefaultTempWorkingFolder = "/tmp"
 )
 
 // CanonicalPkgManagerType maps various OS family/type identifiers that may
@@ -44,18 +46,16 @@ const (
 //
 // Examples:
 //
-//	alpine     -> apk
-//	debian     -> deb
-//	ubuntu     -> deb
-//	centos     -> rpm
-//	almalinux  -> rpm
-//	rocky      -> rpm
-//	rhel       -> rpm
-//	amzn|amazon-> rpm
-//	oracle|ol  -> rpm
-//	photon     -> rpm
-//	mariner|cbl-mariner -> rpm
-//	suse|sles|opensuse -> rpm
+//	alpine      -> apk
+//	debian      -> deb
+//	ubuntu      -> deb
+//	centos      -> rpm
+//	almalinux   -> rpm
+//	rocky       -> rpm
+//	redhat      -> rpm
+//	amazon      -> rpm
+//	oracle      -> rpm
+//	cbl-mariner -> rpm
 func CanonicalPkgManagerType(raw string) string {
 	switch strings.ToLower(raw) { // normalize case defensively
 	case "apk", "deb", "rpm":
@@ -65,7 +65,7 @@ func CanonicalPkgManagerType(raw string) string {
 		return "apk"
 	case "debian", "ubuntu":
 		return "deb"
-	case "centos", "rocky", "alma", "almalinux", "rhel", "redhat", "amzn", "amazon", "oracle", "ol", "photon", "mariner", "cbl-mariner", "azurelinux", "azure-linux", "azure", "suse", "sles", "opensuse", "fedora":
+	case "cbl-mariner", "azurelinux", "centos", "oracle", "redhat", "rocky", "amazon", "alma", "almalinux":
 		return "rpm"
 	default:
 		return raw

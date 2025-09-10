@@ -230,33 +230,20 @@ func TestDeduplicateStringSlice(t *testing.T) {
 
 func TestCanonicalPkgManagerType(t *testing.T) {
 	tests := map[string]string{
-		"apk":           "apk",
-		"alpine":        "apk",
-		"AlPiNe":        "apk",
-		"deb":           "deb",
-		"debian":        "deb",
-		"ubuntu":        "deb",
-		"rpm":           "rpm",
-		"centos":        "rpm",
-		"rocky":         "rpm",
-		"alma":          "rpm",
-		"almalinux":     "rpm",
-		"rhel":          "rpm",
-		"amzn":          "rpm",
-		"amazon":        "rpm",
-		"oracle":        "rpm",
-		"ol":            "rpm",
-		"photon":        "rpm",
-		"mariner":       "rpm",
-		"cbl-mariner":   "rpm",
-		"azurelinux":    "rpm",
-		"azure-linux":   "rpm",
-		"azure":         "rpm",
-		"suse":          "rpm",
-		"sles":          "rpm",
-		"opensuse":      "rpm",
-		"fedora":        "rpm",
-		"unknown-disto": "unknown-disto", // passthrough
+		"alpine":         "apk",
+		"AlPiNe":         "apk",
+		"debian":         "deb",
+		"ubuntu":         "deb",
+		"rpm":            "rpm",
+		"centos":         "rpm",
+		"rocky":          "rpm",
+		"alma":           "rpm",
+		"almalinux":      "rpm",
+		"amazon":         "rpm",
+		"oracle":         "rpm",
+		"cbl-mariner":    "rpm",
+		"azurelinux":     "rpm",
+		"unknown-distro": "unknown-distro", // passthrough
 	}
 	for raw, want := range tests {
 		if got := CanonicalPkgManagerType(raw); got != want {

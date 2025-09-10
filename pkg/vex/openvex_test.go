@@ -11,11 +11,12 @@ import (
 	"github.com/project-copacetic/copacetic/pkg/buildkit"
 	"github.com/project-copacetic/copacetic/pkg/pkgmgr"
 	"github.com/project-copacetic/copacetic/pkg/types/unversioned"
+	"github.com/project-copacetic/copacetic/pkg/utils"
 )
 
 func TestOpenVex_CreateVEXDocument(t *testing.T) {
 	config := &buildkit.Config{}
-	workingFolder := "/tmp"
+	workingFolder := utils.DefaultTempWorkingFolder
 	alpineManager, _ := pkgmgr.GetPackageManager("alpine", "", config, workingFolder)
 	debianManager, _ := pkgmgr.GetPackageManager("debian", "", config, workingFolder)
 	patchedImageName := "foo.io/bar:latest"
@@ -200,7 +201,7 @@ func TestOpenVex_CreateVEXDocument(t *testing.T) {
 // independently of previously added OS updates and do not collide with other tests.
 func TestOpenVex_CreateVEXDocument_LangUpdates(t *testing.T) {
 	config := &buildkit.Config{}
-	workingFolder := "/tmp"
+	workingFolder := utils.DefaultTempWorkingFolder
 	alpineManager, _ := pkgmgr.GetPackageManager("alpine", "", config, workingFolder)
 	patchedImageName := "foo.io/bar:latest"
 	// isolate environment author
@@ -279,7 +280,7 @@ func TestOpenVex_PurlPerOSType(t *testing.T) {
 	}
 
 	config := &buildkit.Config{}
-	workingFolder := "/tmp"
+	workingFolder := utils.DefaultTempWorkingFolder
 
 	cases := []tc{
 		// apk based

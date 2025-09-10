@@ -7,6 +7,7 @@ import (
 
 	"github.com/project-copacetic/copacetic/pkg/buildkit"
 	"github.com/project-copacetic/copacetic/pkg/types/unversioned"
+	"github.com/project-copacetic/copacetic/pkg/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -14,7 +15,7 @@ import (
 func TestGetPackageManager(t *testing.T) {
 	// Create a mock config and workingFolder
 	config := &buildkit.Config{}
-	workingFolder := "/tmp"
+	workingFolder := utils.DefaultTempWorkingFolder
 
 	t.Run("should return an apkManager for alpine", func(t *testing.T) {
 		// Call the GetPackageManager function with "alpine" as osType

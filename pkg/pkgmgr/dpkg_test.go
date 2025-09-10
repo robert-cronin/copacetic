@@ -17,6 +17,7 @@ import (
 
 	"github.com/project-copacetic/copacetic/pkg/buildkit"
 	"github.com/project-copacetic/copacetic/pkg/types/unversioned"
+	"github.com/project-copacetic/copacetic/pkg/utils"
 )
 
 // TestGetPackageManager tests the GetPackageManager function.
@@ -362,7 +363,7 @@ func TestGetPackageType(t *testing.T) {
 			name: "debian",
 			fields: fields{
 				config:        &buildkit.Config{},
-				workingFolder: "/tmp",
+				workingFolder: utils.DefaultTempWorkingFolder,
 				isDistroless:  false,
 				statusdNames:  "",
 			},
