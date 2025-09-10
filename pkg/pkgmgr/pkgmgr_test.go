@@ -17,8 +17,7 @@ func TestGetPackageManager(t *testing.T) {
 	config := &buildkit.Config{}
 
 	t.Run("should return an apkManager for alpine", func(t *testing.T) {
-		// Call the GetPackageManager function with "alpine" as osType
-		manager, err := GetPackageManager("alpine", "1.0", config, utils.DefaultTempWorkingFolder)
+		manager, err := GetPackageManager(utils.OSTypeAlpine, "1.0", config, utils.DefaultTempWorkingFolder)
 
 		// Assert that there is no error and the manager is not nil
 		assert.NoError(t, err)
@@ -29,8 +28,7 @@ func TestGetPackageManager(t *testing.T) {
 	})
 
 	t.Run("should return a dpkgManager for debian", func(t *testing.T) {
-		// Call the GetPackageManager function with "debian" as osType
-		manager, err := GetPackageManager("debian", "1.0", config, utils.DefaultTempWorkingFolder)
+		manager, err := GetPackageManager(utils.OSTypeDebian, "1.0", config, utils.DefaultTempWorkingFolder)
 
 		// Assert that there is no error and the manager is not nil
 		assert.NoError(t, err)
@@ -41,8 +39,7 @@ func TestGetPackageManager(t *testing.T) {
 	})
 
 	t.Run("should return a dpkgManager for ubuntu", func(t *testing.T) {
-		// Call the GetPackageManager function with "ubuntu" as osType
-		manager, err := GetPackageManager("ubuntu", "1.0", config, utils.DefaultTempWorkingFolder)
+		manager, err := GetPackageManager(utils.OSTypeUbuntu, "1.0", config, utils.DefaultTempWorkingFolder)
 
 		// Assert that there is no error and the manager is not nil
 		assert.NoError(t, err)
@@ -53,8 +50,7 @@ func TestGetPackageManager(t *testing.T) {
 	})
 
 	t.Run("should return an rpmManager for cbl-mariner", func(t *testing.T) {
-		// Call the GetPackageManager function with "cbl-mariner" as osType
-		manager, err := GetPackageManager("cbl-mariner", "1.0", config, utils.DefaultTempWorkingFolder)
+		manager, err := GetPackageManager(utils.OSTypeCBLMariner, "1.0", config, utils.DefaultTempWorkingFolder)
 
 		// Assert that there is no error and the manager is not nil
 		assert.NoError(t, err)
@@ -65,8 +61,7 @@ func TestGetPackageManager(t *testing.T) {
 	})
 
 	t.Run("should return an rpmManager for azurelinux", func(t *testing.T) {
-		// Call the GetPackageManager function with "azurelinux" as osType
-		manager, err := GetPackageManager("azurelinux", "1.0", config, utils.DefaultTempWorkingFolder)
+		manager, err := GetPackageManager(utils.OSTypeAzureLinux, "1.0", config, utils.DefaultTempWorkingFolder)
 
 		// Assert that there is no error and the manager is not nil
 		assert.NoError(t, err)
@@ -77,8 +72,7 @@ func TestGetPackageManager(t *testing.T) {
 	})
 
 	t.Run("should return an rpmManager for redhat", func(t *testing.T) {
-		// Call the GetPackageManager function with "redhat" as osType
-		manager, err := GetPackageManager("redhat", "1.0", config, utils.DefaultTempWorkingFolder)
+		manager, err := GetPackageManager(utils.OSTypeRedHat, "1.0", config, utils.DefaultTempWorkingFolder)
 
 		// Assert that there is no error and the manager is not nil
 		assert.NoError(t, err)

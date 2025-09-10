@@ -8,6 +8,7 @@ import (
 
 	"github.com/project-copacetic/copacetic/pkg/types"
 	"github.com/project-copacetic/copacetic/pkg/types/unversioned"
+	"github.com/project-copacetic/copacetic/pkg/utils"
 )
 
 // Test Options struct initialization and validation.
@@ -43,7 +44,7 @@ func TestOptions_WithUpdates(t *testing.T) {
 		},
 		Metadata: unversioned.Metadata{
 			OS: unversioned.OS{
-				Type:    "debian",
+				Type:    utils.OSTypeDebian,
 				Version: "11",
 			},
 		},

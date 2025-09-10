@@ -16,8 +16,8 @@ import (
 
 func TestOpenVex_CreateVEXDocument(t *testing.T) {
 	config := &buildkit.Config{}
-	alpineManager, _ := pkgmgr.GetPackageManager("alpine", "", config, utils.DefaultTempWorkingFolder)
-	debianManager, _ := pkgmgr.GetPackageManager("debian", "", config, utils.DefaultTempWorkingFolder)
+	alpineManager, _ := pkgmgr.GetPackageManager(utils.OSTypeAlpine, "", config, utils.DefaultTempWorkingFolder)
+	debianManager, _ := pkgmgr.GetPackageManager(utils.OSTypeDebian, "", config, utils.DefaultTempWorkingFolder)
 	patchedImageName := "foo.io/bar:latest"
 	t.Setenv("COPA_VEX_AUTHOR", "test author")
 
@@ -56,7 +56,7 @@ func TestOpenVex_CreateVEXDocument(t *testing.T) {
 					},
 					Metadata: unversioned.Metadata{
 						OS: unversioned.OS{
-							Type: "alpine",
+							Type: utils.OSTypeAlpine,
 						},
 						Config: unversioned.Config{
 							Arch: "x86_64",
@@ -122,7 +122,7 @@ func TestOpenVex_CreateVEXDocument(t *testing.T) {
 					},
 					Metadata: unversioned.Metadata{
 						OS: unversioned.OS{
-							Type: "debian",
+							Type: utils.OSTypeDebian,
 						},
 						Config: unversioned.Config{
 							Arch: "x86_64",
@@ -201,7 +201,7 @@ func TestOpenVex_CreateVEXDocument(t *testing.T) {
 func TestOpenVex_CreateVEXDocument_LangUpdates(t *testing.T) {
 	config := &buildkit.Config{}
 	workingFolder := utils.DefaultTempWorkingFolder
-	alpineManager, _ := pkgmgr.GetPackageManager("alpine", "", config, workingFolder)
+	alpineManager, _ := pkgmgr.GetPackageManager(utils.OSTypeAlpine, "", config, workingFolder)
 	patchedImageName := "foo.io/bar:latest"
 	// isolate environment author
 	t.Setenv("COPA_VEX_AUTHOR", "lang test author")
@@ -236,7 +236,7 @@ func TestOpenVex_CreateVEXDocument_LangUpdates(t *testing.T) {
 			},
 		},
 		Metadata: unversioned.Metadata{
-			OS:     unversioned.OS{Type: "alpine"},
+			OS:     unversioned.OS{Type: utils.OSTypeAlpine},
 			Config: unversioned.Config{Arch: "x86_64"},
 		},
 	}
@@ -282,19 +282,19 @@ func TestOpenVex_PurlPerOSType(t *testing.T) {
 
 	cases := []tc{
 		// apk based
-		{name: "alpine->apk", osType: "alpine", pkgMgrType: "apk", expectedPurl: "pkg:apk/alpine/pkgA@1.2.3?arch=x86_64"},
+		{name: "alpine->apk", osType: utils.OSTypeAlpine, pkgMgrType: "apk", expectedPurl: "pkg:apk/alpine/pkgA@1.2.3?arch=x86_64"},
 		// deb based
-		{name: "debian->deb", osType: "debian", pkgMgrType: "deb", expectedPurl: "pkg:deb/debian/pkgA@1.2.3?arch=x86_64"},
-		{name: "ubuntu->deb", osType: "ubuntu", pkgMgrType: "deb", expectedPurl: "pkg:deb/ubuntu/pkgA@1.2.3?arch=x86_64"},
+		{name: "debian->deb", osType: utils.OSTypeDebian, pkgMgrType: "deb", expectedPurl: "pkg:deb/debian/pkgA@1.2.3?arch=x86_64"},
+		{name: "ubuntu->deb", osType: utils.OSTypeUbuntu, pkgMgrType: "deb", expectedPurl: "pkg:deb/ubuntu/pkgA@1.2.3?arch=x86_64"},
 		// rpm based
-		{name: "cbl-mariner->rpm", osType: "cbl-mariner", pkgMgrType: "rpm", expectedPurl: "pkg:rpm/cbl-mariner/pkgA@1.2.3?arch=x86_64"},
-		{name: "azurelinux->rpm", osType: "azurelinux", pkgMgrType: "rpm", expectedPurl: "pkg:rpm/azurelinux/pkgA@1.2.3?arch=x86_64"},
-		{name: "centos->rpm", osType: "centos", pkgMgrType: "rpm", expectedPurl: "pkg:rpm/centos/pkgA@1.2.3?arch=x86_64"},
-		{name: "oracle->rpm", osType: "oracle", pkgMgrType: "rpm", expectedPurl: "pkg:rpm/oracle/pkgA@1.2.3?arch=x86_64"},
-		{name: "redhat->rpm", osType: "redhat", pkgMgrType: "rpm", expectedPurl: "pkg:rpm/redhat/pkgA@1.2.3?arch=x86_64"},
-		{name: "rocky->rpm", osType: "rocky", pkgMgrType: "rpm", expectedPurl: "pkg:rpm/rocky/pkgA@1.2.3?arch=x86_64"},
-		{name: "amazon->rpm", osType: "amazon", pkgMgrType: "rpm", expectedPurl: "pkg:rpm/amazon/pkgA@1.2.3?arch=x86_64"},
-		{name: "alma->rpm", osType: "alma", pkgMgrType: "rpm", expectedPurl: "pkg:rpm/alma/pkgA@1.2.3?arch=x86_64"},
+		{name: "cbl-mariner->rpm", osType: utils.OSTypeCBLMariner, pkgMgrType: "rpm", expectedPurl: "pkg:rpm/cbl-mariner/pkgA@1.2.3?arch=x86_64"},
+		{name: "azurelinux->rpm", osType: utils.OSTypeAzureLinux, pkgMgrType: "rpm", expectedPurl: "pkg:rpm/azurelinux/pkgA@1.2.3?arch=x86_64"},
+		{name: "centos->rpm", osType: utils.OSTypeCentOS, pkgMgrType: "rpm", expectedPurl: "pkg:rpm/centos/pkgA@1.2.3?arch=x86_64"},
+		{name: "oracle->rpm", osType: utils.OSTypeOracle, pkgMgrType: "rpm", expectedPurl: "pkg:rpm/oracle/pkgA@1.2.3?arch=x86_64"},
+		{name: "redhat->rpm", osType: utils.OSTypeRedHat, pkgMgrType: "rpm", expectedPurl: "pkg:rpm/redhat/pkgA@1.2.3?arch=x86_64"},
+		{name: "rocky->rpm", osType: utils.OSTypeRocky, pkgMgrType: "rpm", expectedPurl: "pkg:rpm/rocky/pkgA@1.2.3?arch=x86_64"},
+		{name: "amazon->rpm", osType: utils.OSTypeAmazon, pkgMgrType: "rpm", expectedPurl: "pkg:rpm/amazon/pkgA@1.2.3?arch=x86_64"},
+		{name: "alma->rpm", osType: utils.OSTypeAlma, pkgMgrType: "rpm", expectedPurl: "pkg:rpm/alma/pkgA@1.2.3?arch=x86_64"},
 	}
 
 	for _, cse := range cases {

@@ -114,7 +114,7 @@ func isLessThanRPMVersion(v1, v2 string) bool {
 func getRPMImageName(manifest *unversioned.UpdateManifest, osType string, osVersion string, useCachePrefix bool) string {
 	var image, version string
 
-	if osType == "azurelinux" {
+	if osType == utils.OSTypeAzureLinux {
 		image = "azurelinux/base/core"
 		if strings.Contains(osVersion, "3.0") {
 			version = "3.0"
@@ -126,7 +126,7 @@ func getRPMImageName(manifest *unversioned.UpdateManifest, osType string, osVers
 		image = "cbl-mariner/base/core"
 		version = "2.0"
 
-		if manifest != nil && manifest.Metadata.OS.Type == "cbl-mariner" {
+		if manifest != nil && manifest.Metadata.OS.Type == utils.OSTypeCBLMariner {
 			vers := strings.Split(manifest.Metadata.OS.Version, ".")
 			if len(vers) < 2 {
 				vers = append(vers, "0")
@@ -212,7 +212,7 @@ func (rm *rpmManager) InstallUpdates(ctx context.Context, manifest *unversioned.
 	var err error
 
 	if manifest != nil {
-		if manifest.Metadata.OS.Type == "oracle" && !ignoreErrors {
+		if manifest.Metadata.OS.Type == utils.OSTypeOracle && !ignoreErrors {
 			err = errors.New("detected Oracle image passed in\n" +
 				"Please read https://project-copacetic.github.io/copacetic/website/troubleshooting before patching your Oracle image")
 			return &rm.config.ImageState, nil, err

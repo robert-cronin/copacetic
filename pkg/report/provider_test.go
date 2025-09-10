@@ -22,7 +22,7 @@ func TestDummyProvider(t *testing.T) {
 			manifest: &unversioned.UpdateManifest{
 				Metadata: unversioned.Metadata{
 					OS: unversioned.OS{
-						Type:    "alpine",
+						Type:    utils.OSTypeAlpine,
 						Version: "3.14.0",
 					},
 					Config: unversioned.Config{

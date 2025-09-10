@@ -97,7 +97,7 @@ func TestGetAPTImageName(t *testing.T) {
 			manifest: &unversioned.UpdateManifest{
 				Metadata: unversioned.Metadata{
 					OS: unversioned.OS{
-						Type:    "ubuntu",
+						Type:    utils.OSTypeUbuntu,
 						Version: "20.04",
 					},
 				},
@@ -109,7 +109,7 @@ func TestGetAPTImageName(t *testing.T) {
 			manifest: &unversioned.UpdateManifest{
 				Metadata: unversioned.Metadata{
 					OS: unversioned.OS{
-						Type:    "debian",
+						Type:    utils.OSTypeDebian,
 						Version: "11.0",
 					},
 				},
@@ -121,7 +121,7 @@ func TestGetAPTImageName(t *testing.T) {
 			manifest: &unversioned.UpdateManifest{
 				Metadata: unversioned.Metadata{
 					OS: unversioned.OS{
-						Type:    "debian",
+						Type:    utils.OSTypeDebian,
 						Version: "11.1",
 					},
 				},
@@ -360,7 +360,7 @@ func TestGetPackageType(t *testing.T) {
 		want   string
 	}{
 		{
-			name: "debian",
+			name: utils.OSTypeDebian,
 			fields: fields{
 				config:        &buildkit.Config{},
 				workingFolder: utils.DefaultTempWorkingFolder,

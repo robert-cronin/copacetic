@@ -169,7 +169,18 @@ func DiscoverPlatformsFromReport(reportDir, scanner string) ([]types.PatchPlatfo
 
 func isSupportedOsType(osType string) bool {
 	switch osType {
-	case "alpine", "debian", "ubuntu", "cbl-mariner", "azurelinux", "centos", "oracle", "redhat", "rocky", "amazon", "alma":
+	case utils.OSTypeAlpine,
+		utils.OSTypeDebian,
+		utils.OSTypeUbuntu,
+		utils.OSTypeCBLMariner,
+		utils.OSTypeAzureLinux,
+		utils.OSTypeCentOS,
+		utils.OSTypeOracle,
+		utils.OSTypeRedHat,
+		utils.OSTypeRocky,
+		utils.OSTypeAmazon,
+		utils.OSTypeAlma,
+		utils.OSTypeAlmaLinux:
 		return true
 	default:
 		return false

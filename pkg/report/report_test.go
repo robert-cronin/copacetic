@@ -215,7 +215,7 @@ func TestTryParseScanReportWithNativeScanner(t *testing.T) {
 	result, err := TryParseScanReport(tmpFile, "native", utils.PkgTypeOS, utils.PatchTypePatch)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, "alpine", result.Metadata.OS.Type)
+	assert.Equal(t, utils.OSTypeAlpine, result.Metadata.OS.Type)
 	assert.Equal(t, "3.14.0", result.Metadata.OS.Version)
 	assert.Len(t, result.OSUpdates, 1)
 	assert.Equal(t, "test-pkg", result.OSUpdates[0].Name)

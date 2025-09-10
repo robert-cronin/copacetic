@@ -446,7 +446,19 @@ func TestMapGoArch(t *testing.T) {
 }
 
 func TestIsSupportedOsType(t *testing.T) {
-	supported := []string{"alpine", "debian", "ubuntu", "cbl-mariner", "azurelinux", "centos", "oracle", "redhat", "rocky", "amazon", "alma"}
+	supported := []string{
+		utils.OSTypeAlpine,
+		utils.OSTypeDebian,
+		utils.OSTypeUbuntu,
+		utils.OSTypeCBLMariner,
+		utils.OSTypeAzureLinux,
+		utils.OSTypeCentOS,
+		utils.OSTypeOracle,
+		utils.OSTypeRedHat,
+		utils.OSTypeRocky,
+		utils.OSTypeAmazon,
+		utils.OSTypeAlma,
+	}
 	for _, os := range supported {
 		if !isSupportedOsType(os) {
 			t.Errorf("expected %s to be supported", os)

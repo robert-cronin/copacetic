@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/project-copacetic/copacetic/pkg/types/unversioned"
+	"github.com/project-copacetic/copacetic/pkg/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -86,7 +87,7 @@ func TestConvertV1alpha1UpdateManifestToUnversionedUpdateManifest(t *testing.T) 
 			want: &unversioned.UpdateManifest{
 				Metadata: unversioned.Metadata{
 					OS: unversioned.OS{
-						Type:    "debian",
+						Type:    utils.OSTypeDebian,
 						Version: "11.3",
 					},
 					Config: unversioned.Config{
