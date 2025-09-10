@@ -17,6 +17,7 @@ For example, if you have a scanner plugin binary called `copa-foo` in `$PATH`, y
 ```bash
 copa patch --scanner foo --image $IMAGE ...
 ```
+
 :::note
 
 You can also a submit scan report in native `v1alpha1` format (interface mentioned below) by using `--scanner native` flag along with `-r <report>` flag.
@@ -88,7 +89,7 @@ type Config struct {
 }
 ```
 
-## v1alpha2 (Enhanced)
+## v1alpha2
 
 ```go
 type UpdateManifest struct {
@@ -125,9 +126,11 @@ type Config struct {
 }
 ```
 
+## Format Examples
+
 From the above, we can see that the plugin must return a JSON object via standard out with the following fields.
 
-**v1alpha1 Format**
+### v1alpha1
 
 ```json
 {
@@ -152,7 +155,7 @@ From the above, we can see that the plugin must return a JSON object via standar
 }
 ```
 
-**v1alpha2 Format (Enhanced - recommended for new plugins):**
+### v1alpha2
 
 ```json
 {
