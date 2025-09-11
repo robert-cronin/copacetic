@@ -19,6 +19,10 @@ import (
 )
 
 const defaultPipInstallTimeoutSeconds = 300
+const pipCheckFile = "/copa-pip-check"
+const sitePackagesDetectFile = "/copa-site-packages-path"
+const defaultToolingPythonTag = "3-slim" // fallback tooling image tag if version can't be inferred
+const toolingImageTemplate = "docker.io/library/python:%s"
 
 type pythonManager struct {
 	config        *buildkit.Config
@@ -354,63 +358,183 @@ func (pm *pythonManager) upgradePackages(
 		return currentState, []byte{}, nil
 	}
 
-	// Install all requested update packages using validated package specifications
-	var pipInstalled llb.State
-
-	if ignoreErrors {
-		// When ignoring errors, we need to handle each package installation individually
-		// Build a single command that tries each package and continues on failure
-		pipInstalled = pm.installPackagesWithErrorHandling(currentState, installPkgSpecs)
-	} else {
-		// Normal pip install that will fail on errors - install all packages at once
-		// Build command with validated package specifications
-		pipInstalled = pm.installPackagesStandard(currentState, installPkgSpecs)
+	// First, detect if pip (or pip3) exists in the target image. If not, use tooling container fallback.
+	pipExists, detectErr := pm.detectPip(ctx, currentState)
+	if detectErr != nil {
+		log.Warnf("pip detection encountered an issue; proceeding assuming pip absent: %v", detectErr)
 	}
 
-	// Write updates-manifest to host for post-patch validation
-	const outputResultsTemplate = `sh -c 'pip freeze --all > %s; ` +
-		`if [ $? -ne 0 ]; then echo "WARN: pip freeze returned $?"; fi'`
+	if !pipExists {
+		log.Infof("pip not found in target image. Falling back to tooling container strategy for Python updates.")
+		return pm.upgradePackagesWithTooling(ctx, currentState, installPkgSpecs)
+	}
 
+	// Install all requested update packages using validated package specifications directly in target image
+	pipInstalled := pm.installPythonPackages(currentState, installPkgSpecs, ignoreErrors)
+
+	// Write updates-manifest to host for post-patch validation (pip freeze)
+	const outputResultsTemplate = `sh -c 'pip freeze --all > %s; if [ $? -ne 0 ]; then echo "WARN: pip freeze returned $?"; fi'`
 	outputResultsCmd := fmt.Sprintf(outputResultsTemplate, resultManifest)
 	mkFolders := pipInstalled.File(llb.Mkdir(resultsPath, 0o744, llb.WithParents(true)))
 	resultsWritten := mkFolders.Dir(resultsPath).Run(llb.Shlex(outputResultsCmd)).Root()
 	resultsDiff := llb.Diff(pipInstalled, resultsWritten)
 
-	resultsBytes, err := buildkit.ExtractFileFromState(
-		ctx, pm.config.Client, &resultsDiff, filepath.Join(resultsPath, resultManifest))
+	resultsBytes, err := buildkit.ExtractFileFromState(ctx, pm.config.Client, &resultsDiff, filepath.Join(resultsPath, resultManifest))
 	if err != nil {
 		return nil, nil, err
 	}
-
-	// Return the complete state with all changes (current state + pip installs)
 	return &pipInstalled, resultsBytes, nil
 }
 
-// installPackagesWithErrorHandling installs packages individually with error handling.
-func (pm *pythonManager) installPackagesWithErrorHandling(currentState *llb.State, packageSpecs []string) llb.State {
-	// Build individual pip install commands with error handling
-	var installCommands []string
-	for _, spec := range packageSpecs {
-		// Use printf to avoid shell injection - spec is already validated
-		installCommands = append(installCommands,
-			fmt.Sprintf(`pip install --timeout %d '%s' || printf "WARN: pip install failed for %s\n"`,
-				defaultPipInstallTimeoutSeconds, spec, spec))
+// installPythonPackages installs packages; if ignoreErrors is true, each package is attempted individually.
+func (pm *pythonManager) installPythonPackages(currentState *llb.State, packageSpecs []string, ignoreErrors bool) llb.State {
+	if len(packageSpecs) == 0 {
+		return *currentState
 	}
-	installCmd := fmt.Sprintf(`sh -c '%s'`, strings.Join(installCommands, "; "))
+	if ignoreErrors {
+		var installCommands []string
+		for _, spec := range packageSpecs {
+			installCommands = append(installCommands,
+				fmt.Sprintf(`pip install --timeout %d '%s' || printf "WARN: pip install failed for %s\n"`,
+					defaultPipInstallTimeoutSeconds, spec, spec))
+		}
+		installCmd := fmt.Sprintf(`sh -c '%s'`, strings.Join(installCommands, "; "))
+		return currentState.Run(
+			llb.Shlex(installCmd),
+			llb.WithProxy(utils.GetProxy()),
+		).Root()
+	}
+	// Standard single command install (fail-fast)
+	args := []string{"pip", "install", fmt.Sprintf("--timeout=%d", defaultPipInstallTimeoutSeconds)}
+	args = append(args, packageSpecs...)
 	return currentState.Run(
-		llb.Shlex(installCmd),
+		llb.Args(args),
 		llb.WithProxy(utils.GetProxy()),
 	).Root()
 }
 
-// installPackagesStandard installs packages in a single pip command.
-func (pm *pythonManager) installPackagesStandard(currentState *llb.State, packageSpecs []string) llb.State {
-	// Build a single pip install command with all validated package specifications
-	args := []string{"pip", "install", fmt.Sprintf("--timeout=%d", defaultPipInstallTimeoutSeconds)}
-	args = append(args, packageSpecs...)
+// detectPip checks if pip or pip3 exists in the target image by creating a marker file if found.
+func (pm *pythonManager) detectPip(ctx context.Context, currentState *llb.State) (bool, error) {
+	checkCmd := `sh -c 'if command -v pip >/dev/null 2>&1; then echo ok > ` + pipCheckFile + `; elif command -v pip3 >/dev/null 2>&1; then echo ok > ` + pipCheckFile + `; fi'`
+	checked := currentState.Run(llb.Shlex(checkCmd)).Root()
+	_, err := buildkit.ExtractFileFromState(ctx, pm.config.Client, &checked, pipCheckFile)
+	if err != nil {
+		// File not found implies pip absent; treat other errors the same for now
+		return false, nil
+	}
+	return true, nil
+}
 
-	return currentState.Run(
-		llb.Args(args), // Use llb.Args for safer command construction
+// upgradePackagesWithTooling performs Python package upgrades using an external tooling container when pip is absent in target image.
+// Strategy:
+// 1. Detect an appropriate site-packages directory in target image from a list of candidate paths.
+// 2. Infer Python version from detected path (pattern pythonX.Y) to select a matching tooling image; fallback to default tag.
+// 3. In tooling image, pip install packages into /copa-pkgs using --target (no deps, expect fixed versions).
+// 4. Copy installed package contents into detected site-packages path in target image state.
+// 5. Synthesize a pip freeze style resultsBytes for validation (package==version per line) since pip isn't present in target.
+func (pm *pythonManager) upgradePackagesWithTooling(
+	ctx context.Context,
+	currentState *llb.State,
+	installPkgSpecs []string,
+) (*llb.State, []byte, error) {
+	// Candidate site-packages paths (we'll choose the path that already contains the most target packages)
+	candidatePaths := []string{
+		"/usr/local/lib/python*/site-packages",
+		"/usr/lib/python*/site-packages",
+		"/opt/python*/site-packages",
+		"/usr/lib/az/lib/python*/site-packages", // Az CLI custom path
+	}
+
+	// Build list of package base names (lowercase, normalize underscores to hyphens) for detection heuristics
+	var pkgBaseNames []string
+	for _, spec := range installPkgSpecs {
+		parts := strings.SplitN(spec, "==", 2)
+		name := parts[0]
+		name = strings.ToLower(strings.ReplaceAll(name, "_", "-"))
+		pkgBaseNames = append(pkgBaseNames, name)
+	}
+
+	// Shell logic to pick directory with highest match count of existing packages
+	detectScriptBuilder := strings.Builder{}
+	detectScriptBuilder.WriteString("set -e; best=''; bestc=-1; pkgs=\"")
+	for i, n := range pkgBaseNames {
+		if i > 0 {
+			detectScriptBuilder.WriteString(" ")
+		}
+		detectScriptBuilder.WriteString(n)
+	}
+	detectScriptBuilder.WriteString("\"; for pattern in")
+	for _, p := range candidatePaths {
+		detectScriptBuilder.WriteString(fmt.Sprintf(" '%s'", p))
+	}
+	detectScriptBuilder.WriteString("; do for d in $pattern; do [ -d \"$d\" ] || continue; c=0; for p in $pkgs; do if [ -d \"$d/$p\" ] || ls \"$d\" 2>/dev/null | grep -i -q \"^$p-.*\\.dist-info$\"; then c=$((c+1)); fi; done; if [ $c -gt $bestc ]; then bestc=$c; best=$d; fi; done; done; if [ -n \"$best\" ]; then echo $best > ")
+	detectScriptBuilder.WriteString(sitePackagesDetectFile)
+	detectScriptBuilder.WriteString("; else for pattern in")
+	for _, p := range candidatePaths {
+		detectScriptBuilder.WriteString(fmt.Sprintf(" '%s'", p))
+	}
+	detectScriptBuilder.WriteString("; do for d in $pattern; do if [ -d \"$d\" ]; then echo $d > ")
+	detectScriptBuilder.WriteString(sitePackagesDetectFile)
+	detectScriptBuilder.WriteString("; exit 0; fi; done; done; fi")
+
+	detectCmd := fmt.Sprintf("sh -c '%s'", detectScriptBuilder.String())
+	detected := currentState.Run(llb.Shlex(detectCmd)).Root()
+	pathBytes, _ := buildkit.ExtractFileFromState(ctx, pm.config.Client, &detected, sitePackagesDetectFile)
+	sitePkgsPath := strings.TrimSpace(string(pathBytes))
+	if sitePkgsPath == "" {
+		return nil, nil, fmt.Errorf("unable to locate site-packages directory in target image (searched: %v)", candidatePaths)
+	}
+	log.Infof("Detected Python site-packages path: %s", sitePkgsPath)
+
+	// Infer python version from path
+	versionRegex := regexp.MustCompile(`python(\d+\.\d+)`)
+	pyVersion := ""
+	if m := versionRegex.FindStringSubmatch(sitePkgsPath); len(m) == 2 {
+		pyVersion = m[1]
+	}
+
+	toolingTag := defaultToolingPythonTag
+	if pyVersion != "" {
+		// produce e.g. 3.12-slim
+		toolingTag = fmt.Sprintf("%s-slim", pyVersion)
+	}
+	toolingImage := fmt.Sprintf(toolingImageTemplate, toolingTag)
+	log.Infof("Using tooling image %s for Python package operations", toolingImage)
+
+	// Build install command in tooling image
+	toolingInstallCmd := fmt.Sprintf("sh -c 'pip install --no-cache-dir --disable-pip-version-check --no-deps --target /copa-pkgs %s'", strings.Join(installPkgSpecs, " "))
+	toolingState := llb.Image(toolingImage).Run(
+		llb.Shlex(toolingInstallCmd),
 		llb.WithProxy(utils.GetProxy()),
 	).Root()
+
+	// Clean old versions of these packages in the detected site-packages path before copying new ones
+	cleanScriptBuilder := strings.Builder{}
+	cleanScriptBuilder.WriteString("set -e; sp=\"" + sitePkgsPath + "\"; pkgs=\"")
+	for i, n := range pkgBaseNames {
+		if i > 0 {
+			cleanScriptBuilder.WriteString(" ")
+		}
+		cleanScriptBuilder.WriteString(n)
+	}
+	cleanScriptBuilder.WriteString("\"; if [ -n \"$pkgs\" ]; then for p in $pkgs; do rm -rf \"$sp/$p\" 2>/dev/null || true; for d in $sp/$p-*.dist-info; do [ -d \"$d\" ] && rm -rf \"$d\" || true; done; done; fi")
+	cleanCmd := fmt.Sprintf("sh -c '%s'", cleanScriptBuilder.String())
+	cleaned := currentState.Run(llb.Shlex(cleanCmd)).Root()
+
+	// Copy installed packages into target site-packages path after cleanup
+	merged := cleaned.File(
+		llb.Copy(toolingState, "/copa-pkgs/", sitePkgsPath+"/", &llb.CopyInfo{CopyDirContentsOnly: true, CreateDestPath: true}),
+	)
+
+	// Synthesize resultsBytes (freeze-like) from requested specs (only those with version pins)
+	var resultsLines []string
+	for _, spec := range installPkgSpecs {
+		parts := strings.SplitN(spec, "==", 2)
+		if len(parts) == 2 {
+			resultsLines = append(resultsLines, spec)
+		}
+	}
+	resultsBytes := []byte(strings.Join(resultsLines, "\n"))
+
+	return &merged, resultsBytes, nil
 }
