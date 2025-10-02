@@ -19,6 +19,10 @@ import (
 	"github.com/project-copacetic/copacetic/pkg/types/unversioned"
 )
 
+const (
+	jsonExt = ".json"
+)
+
 // BuildPatchedImage builds a patched image using the Copa patching logic.
 // This reuses the same components as the CLI to ensure consistency.
 func (f *Frontend) buildPatchedImage(ctx context.Context, opts *types.Options, platform *ocispecs.Platform) (llb.State, error) {
@@ -41,7 +45,7 @@ func (f *Frontend) buildPatchedImage(ctx context.Context, opts *types.Options, p
 				if platform.Variant != "" {
 					platformFile = fmt.Sprintf("%s-%s", platformFile, platform.Variant)
 				}
-				platformFile += ".json"
+				platformFile += jsonExt
 
 				specificReportPath := filepath.Join(reportPath, platformFile)
 				// Check if platform-specific report exists
@@ -61,14 +65,14 @@ func (f *Frontend) buildPatchedImage(ctx context.Context, opts *types.Options, p
 			Info("About to parse vulnerability report")
 
 		var err error
-		um, err = report.TryParseScanReport(reportPath, opts.Scanner)
+		um, err = report.TryParseScanReport(reportPath, opts.Scanner, opts.PkgTypes, opts.LibraryPatchLevel)
 		if err != nil {
 			return llb.State{}, errors.Wrapf(err, "failed to parse vulnerability report from path: %s", reportPath)
 		}
 	}
 
 	// Check if there are packages to update
-	if um != nil && len(um.Updates) == 0 {
+	if um != nil && len(um.OSUpdates) == 0 && len(um.LangUpdates) == 0 {
 		bklog.G(ctx).WithField("component", "copa-frontend").Info("No packages to update, returning original image")
 		return config.ImageState, nil
 	}
@@ -136,7 +140,7 @@ func extractReportFromContext(ctx context.Context, client gwclient.Client, repor
 		// Preserve the original filename for proper parsing
 		filename := filepath.Base(reportPath)
 		if filename == "" || filename == "." || filename == "/" {
-			filename = "report.json"
+			filename = "report" + jsonExt
 		}
 		tmpFile := filepath.Join(tmpDir, filename)
 
@@ -154,7 +158,7 @@ func extractReportFromContext(ctx context.Context, client gwclient.Client, repor
 	// If reading as file failed, try as directory
 	entries, dirErr := ref.ReadDir(ctx, gwclient.ReadDirRequest{
 		Path:           reportPath,
-		IncludePattern: "*.json",
+		IncludePattern: "*" + jsonExt,
 	})
 
 	if dirErr == nil && len(entries) > 0 {
@@ -166,7 +170,7 @@ func extractReportFromContext(ctx context.Context, client gwclient.Client, repor
 
 		// Extract each JSON file
 		for _, entry := range entries {
-			if strings.HasSuffix(entry.GetPath(), ".json") {
+			if strings.HasSuffix(entry.GetPath(), jsonExt) {
 				filePath := filepath.Join(reportPath, filepath.Base(entry.GetPath()))
 				fileData, err := ref.ReadFile(ctx, gwclient.ReadRequest{Filename: filePath})
 				if err != nil {

@@ -91,6 +91,8 @@ func TestFrontendPatch(t *testing.T) {
 		name       string
 		baseImage  string
 		localImage string
+		extraOpts  map[string]string // Extra build options for pkg-types, library-patch-level, etc.
+		skipTest   string            // Skip reason if test should be skipped
 	}{
 		{
 			name:       "nginx-debian",
@@ -107,11 +109,32 @@ func TestFrontendPatch(t *testing.T) {
 			baseImage:  "docker.io/library/ubuntu:20.04",
 			localImage: "localhost:5000/ubuntu:20.04",
 		},
+		{
+			name:       "python-app-library-only",
+			baseImage:  "docker.io/library/python:3.11.0",
+			localImage: "localhost:5000/python:3.11.0",
+			extraOpts: map[string]string{
+				"pkg-types":           "library",
+				"library-patch-level": "patch",
+			},
+		},
+		{
+			name:       "python-app-library-and-os",
+			baseImage:  "docker.io/library/python:3.11.0",
+			localImage: "localhost:5000/python:3.11.0",
+			extraOpts: map[string]string{
+				"pkg-types":           "os,library",
+				"library-patch-level": "minor",
+			},
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			runFrontendTest(t, tc.baseImage, tc.localImage)
+			if tc.skipTest != "" {
+				t.Skip(tc.skipTest)
+			}
+			runFrontendTest(t, tc.baseImage, tc.localImage, tc.extraOpts)
 		})
 	}
 
@@ -121,7 +144,7 @@ func TestFrontendPatch(t *testing.T) {
 	})
 }
 
-func runFrontendTest(t *testing.T, baseImage, localImage string) {
+func runFrontendTest(t *testing.T, baseImage, localImage string, extraOpts map[string]string) {
 	// Copy image to local registry
 	t.Logf("Copying %s to %s", baseImage, localImage)
 	copyCmd := exec.Command("oras", "cp", baseImage, localImage)
@@ -138,13 +161,29 @@ func runFrontendTest(t *testing.T, baseImage, localImage string) {
 	reportFile := filepath.Join(tempDir, "report.json")
 	t.Logf("Scanning %s with Trivy to generate report", localImage)
 
-	trivyCmd := exec.Command("trivy", "image",
+	// Determine pkg-types for Trivy scan
+	pkgTypes := "os" // default
+	if extraOpts != nil && extraOpts["pkg-types"] != "" {
+		pkgTypes = extraOpts["pkg-types"]
+		// For library scanning, we need to scan both os and library
+		if strings.Contains(pkgTypes, "library") {
+			pkgTypes = "os,library"
+		}
+	}
+
+	trivyArgs := []string{
+		"image",
 		"--format", "json",
 		"--output", reportFile,
 		"--quiet",
 		"--no-progress",
+		"--pkg-types", pkgTypes,
 		"--insecure", // Allow scanning images from insecure registries
-		localImage)
+		localImage,
+	}
+
+	t.Logf("Running Trivy with pkg-types=%s", pkgTypes)
+	trivyCmd := exec.Command("trivy", trivyArgs...)
 
 	trivyOutput, err := trivyCmd.CombinedOutput()
 	if err != nil {
@@ -194,6 +233,12 @@ func runFrontendTest(t *testing.T, baseImage, localImage string) {
 		"--opt", "context:report=local:report", // Map the context
 		"--output", "type=oci,dest=" + outputTar,
 		"--opt", "platform=linux/amd64",
+	}
+
+	// Add extra options from test case (pkg-types, library-patch-level, etc.)
+	for key, value := range extraOpts {
+		args = append(args, "--opt", fmt.Sprintf("%s=%s", key, value))
+		t.Logf("Adding extra option: %s=%s", key, value)
 	}
 
 	// Handle buildx:// address - this buildctl version doesn't support buildx://

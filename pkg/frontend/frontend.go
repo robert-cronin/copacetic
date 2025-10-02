@@ -18,15 +18,17 @@ import (
 
 const (
 	// Frontend option keys - matching CLI options.
-	keyImage        = "image"
-	keyReport       = "report"
-	keyScanner      = "scanner"
-	keyIgnoreErrors = "ignore-errors"
-	keyPlatform     = "platform"
-	keyPatchedTag   = "tag"
-	keySuffix       = "suffix"
-	keyOutput       = "output"
-	keyFormat       = "format"
+	keyImage             = "image"
+	keyReport            = "report"
+	keyScanner           = "scanner"
+	keyIgnoreErrors      = "ignore-errors"
+	keyPlatform          = "platform"
+	keyPatchedTag        = "tag"
+	keySuffix            = "suffix"
+	keyOutput            = "output"
+	keyFormat            = "format"
+	keyPkgTypes          = "pkg-types"
+	keyLibraryPatchLevel = "library-patch-level"
 )
 
 // Frontend implements the BuildKit frontend interface for Copa.
