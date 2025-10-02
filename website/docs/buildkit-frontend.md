@@ -251,15 +251,15 @@ buildctl --addr tcp://buildkit-server:1234 build \
 
 ## Frontend vs CLI Comparison
 
-| Aspect                 | BuildKit Frontend                      | Copa CLI                           |
-| ---------------------- | -------------------------------------- | ---------------------------------- |
-| **Installation**       | No local installation required         | Requires Copa binary installation  |
-| **Context Handling**   | Native BuildKit context support        | Manual file management             |
-| **CI/CD Integration**  | Seamless with BuildKit-based workflows | Requires container or binary setup |
-| **Progress Tracking**  | Native BuildKit progress reporting     | CLI output only                    |
-| **Caching**            | Leverages BuildKit's caching layers    | Limited caching support            |
-| **Multi-platform**     | Automatic platform detection           | Manual platform handling           |
-| **Resource Isolation** | Runs in isolated BuildKit containers   | Uses local system resources        |
+| Aspect                 | BuildKit Frontend                      | Copa CLI                                                |
+| ---------------------- | -------------------------------------- | ------------------------------------------------------- |
+| **Installation**       | No local installation required         | Requires Copa binary installation                       |
+| **Context Handling**   | Native BuildKit context support        | Manual file management                                  |
+| **CI/CD Integration**  | Seamless with BuildKit-based workflows | Requires container or binary setup                      |
+| **Progress Tracking**  | Native BuildKit progress reporting     | CLI output only                                         |
+| **Caching**            | Leverages BuildKit's caching layers    | Limited caching support                                 |
+| **Multi-platform**     | Automatic platform detection           | Automatic when using report directory, manual otherwise |
+| **Resource Isolation** | Runs in isolated BuildKit containers   | Uses local system resources                             |
 
 ### When to Use Each Approach
 
