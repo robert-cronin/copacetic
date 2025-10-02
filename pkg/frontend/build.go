@@ -93,6 +93,8 @@ func (f *Frontend) buildPatchedImage(ctx context.Context, opts *types.Options, p
 // extractReportFromContext extracts a report file or directory from the BuildKit context.
 // It automatically detects whether the report path is a file or directory and extracts accordingly.
 // Returns the path to the extracted temp file/directory.
+//
+// To avoid gRPC message size limits (16MB), this function reads files in chunks when needed.
 func extractReportFromContext(ctx context.Context, client gwclient.Client, reportPath string) (string, error) {
 	if reportPath == "" {
 		return "", nil
@@ -124,79 +126,158 @@ func extractReportFromContext(ctx context.Context, client gwclient.Client, repor
 		return "", errors.Wrap(err, "failed to get single ref for local state")
 	}
 
-	// First, try to read as a single file
-	data, fileErr := ref.ReadFile(ctx, gwclient.ReadRequest{Filename: reportPath})
-	if fileErr == nil && len(data) > 0 {
-		// Ensure /tmp directory exists
-		if err := os.MkdirAll("/tmp", 0o1777); err != nil {
-			return "", errors.Wrap(err, "failed to create /tmp directory")
-		}
-		// It's a file - write to temp file
-		tmpDir, err := os.MkdirTemp("/", "copa-frontend-report-")
-		if err != nil {
-			return "", errors.Wrap(err, "failed to create temp dir for report file")
-		}
+	// Check if this is a file or directory
+	stat, statErr := ref.StatFile(ctx, gwclient.StatRequest{Path: reportPath})
+	if statErr != nil {
+		return "", errors.Wrapf(statErr, "failed to stat report path: %s", reportPath)
+	}
 
-		// Preserve the original filename for proper parsing
-		filename := filepath.Base(reportPath)
-		if filename == "" || filename == "." || filename == "/" {
-			filename = "report" + jsonExt
+	// Handle directory case
+	if stat.IsDir() {
+		return extractReportDirectory(ctx, ref, reportPath)
+	}
+
+	// Handle single file case - read in chunks if needed to avoid gRPC limits
+	return extractReportFile(ctx, ref, reportPath, stat.Size)
+}
+
+// extractReportFile extracts a single report file, reading in chunks if it's larger than 8MB.
+func extractReportFile(ctx context.Context, ref gwclient.Reference, reportPath string, fileSize int64) (string, error) {
+	const chunkSize = 8 * 1024 * 1024 // 8MB chunks to stay well under 16MB gRPC limit
+
+	// Ensure /tmp directory exists
+	if err := os.MkdirAll("/tmp", 0o1777); err != nil {
+		return "", errors.Wrap(err, "failed to create /tmp directory")
+	}
+
+	tmpDir, err := os.MkdirTemp("/", "copa-frontend-report-")
+	if err != nil {
+		return "", errors.Wrap(err, "failed to create temp dir for report file")
+	}
+
+	filename := filepath.Base(reportPath)
+	if filename == "" || filename == "." || filename == "/" {
+		filename = "report" + jsonExt
+	}
+	tmpFile := filepath.Join(tmpDir, filename)
+
+	// If file is small enough, read in one go
+	if fileSize < chunkSize {
+		data, err := ref.ReadFile(ctx, gwclient.ReadRequest{Filename: reportPath})
+		if err != nil {
+			os.RemoveAll(tmpDir)
+			return "", errors.Wrapf(err, "failed to read report file: %s", reportPath)
 		}
-		tmpFile := filepath.Join(tmpDir, filename)
 
 		if err := os.WriteFile(tmpFile, data, 0o600); err != nil {
+			os.RemoveAll(tmpDir)
 			return "", errors.Wrap(err, "failed to write report to temp file")
 		}
 
 		bklog.G(ctx).WithField("component", "copa-frontend").
 			WithField("tempFile", tmpFile).
+			WithField("size", fileSize).
 			Debug("Extracted report file from context")
 
 		return tmpFile, nil
 	}
 
-	// If reading as file failed, try as directory
-	entries, dirErr := ref.ReadDir(ctx, gwclient.ReadDirRequest{
+	// File is large - read in chunks
+	bklog.G(ctx).WithField("component", "copa-frontend").
+		WithField("size", fileSize).
+		Info("Reading large report file in chunks")
+
+	f, err := os.OpenFile(tmpFile, os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		os.RemoveAll(tmpDir)
+		return "", errors.Wrap(err, "failed to create temp file")
+	}
+	defer f.Close()
+
+	var offset int64
+	for offset < fileSize {
+		length := chunkSize
+		if offset+int64(length) > fileSize {
+			length = int(fileSize - offset)
+		}
+
+		chunk, err := ref.ReadFile(ctx, gwclient.ReadRequest{
+			Filename: reportPath,
+			Range: &gwclient.FileRange{
+				Offset: int(offset),
+				Length: length,
+			},
+		})
+		if err != nil {
+			os.RemoveAll(tmpDir)
+			return "", errors.Wrapf(err, "failed to read chunk at offset %d", offset)
+		}
+
+		if _, err := f.Write(chunk); err != nil {
+			os.RemoveAll(tmpDir)
+			return "", errors.Wrap(err, "failed to write chunk to temp file")
+		}
+
+		offset += int64(len(chunk))
+	}
+
+	bklog.G(ctx).WithField("component", "copa-frontend").
+		WithField("tempFile", tmpFile).
+		WithField("size", fileSize).
+		WithField("chunks", (fileSize+chunkSize-1)/chunkSize).
+		Debug("Extracted large report file in chunks")
+
+	return tmpFile, nil
+}
+
+// extractReportDirectory extracts all JSON files from a report directory.
+func extractReportDirectory(ctx context.Context, ref gwclient.Reference, reportPath string) (string, error) {
+	entries, err := ref.ReadDir(ctx, gwclient.ReadDirRequest{
 		Path:           reportPath,
 		IncludePattern: "*" + jsonExt,
 	})
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to read report directory: %s", reportPath)
+	}
 
-	if dirErr == nil && len(entries) > 0 {
-		// It's a directory - extract all JSON files
-		tmpDir, err := os.MkdirTemp("", "copa-frontend-reports-")
-		if err != nil {
-			return "", errors.Wrap(err, "failed to create temp dir for report directory")
-		}
+	if len(entries) == 0 {
+		return "", errors.Errorf("no JSON files found in report directory: %s", reportPath)
+	}
 
-		// Extract each JSON file
-		for _, entry := range entries {
-			if strings.HasSuffix(entry.GetPath(), jsonExt) {
-				filePath := filepath.Join(reportPath, filepath.Base(entry.GetPath()))
-				fileData, err := ref.ReadFile(ctx, gwclient.ReadRequest{Filename: filePath})
-				if err != nil {
-					bklog.G(ctx).WithError(err).WithField("file", filePath).Warn("Failed to read report file from directory")
-					continue
+	tmpDir, err := os.MkdirTemp("", "copa-frontend-reports-")
+	if err != nil {
+		return "", errors.Wrap(err, "failed to create temp dir for report directory")
+	}
+
+	// Extract each JSON file
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.GetPath(), jsonExt) {
+			entryPath := filepath.Join(reportPath, filepath.Base(entry.GetPath()))
+
+			// Read file (with chunking support for large files)
+			extractedFile, err := extractReportFile(ctx, ref, entryPath, entry.Size)
+			if err != nil {
+				bklog.G(ctx).WithError(err).WithField("file", entryPath).Warn("Failed to extract report file from directory")
+				continue
+			}
+
+			// Move to the reports directory
+			destPath := filepath.Join(tmpDir, filepath.Base(entry.GetPath()))
+			if err := os.Rename(extractedFile, destPath); err != nil {
+				// If rename fails, try copy
+				data, readErr := os.ReadFile(extractedFile)
+				if readErr == nil {
+					_ = os.WriteFile(destPath, data, 0o600)
 				}
-
-				tmpFile := filepath.Join(tmpDir, filepath.Base(entry.GetPath()))
-				if err := os.WriteFile(tmpFile, fileData, 0o600); err != nil {
-					bklog.G(ctx).WithError(err).WithField("file", tmpFile).Warn("Failed to write report file")
-					continue
-				}
+				os.RemoveAll(filepath.Dir(extractedFile))
 			}
 		}
-
-		bklog.G(ctx).WithField("component", "copa-frontend").
-			WithField("tempDir", tmpDir).
-			WithField("fileCount", len(entries)).
-			Debug("Extracted report directory from context")
-
-		return tmpDir, nil
 	}
 
-	// If both failed, return the more informative error
-	if fileErr != nil {
-		return "", errors.Wrapf(fileErr, "failed to read report from context: %s", reportPath)
-	}
-	return "", errors.Wrapf(dirErr, "failed to read report directory from context: %s", reportPath)
+	bklog.G(ctx).WithField("component", "copa-frontend").
+		WithField("tempDir", tmpDir).
+		WithField("fileCount", len(entries)).
+		Debug("Extracted report directory from context")
+
+	return tmpDir, nil
 }

@@ -294,6 +294,7 @@ docker buildx build \
 - The `pkg-types` option accepts comma-separated values: `os`, `library`, or `os,library`
 - The `library-patch-level` option is only used when `library` is included in `pkg-types`
 - Patch levels: `patch` (safest, minimal changes), `minor` (moderate changes), `major` (significant changes)
+- **Large reports**: The frontend automatically reads vulnerability reports in chunks (8MB per chunk) to handle reports of any size, including those with many library vulnerabilities.
 
 :::
 
