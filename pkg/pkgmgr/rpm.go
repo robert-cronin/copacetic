@@ -523,15 +523,16 @@ func (rm *rpmManager) installUpdates(ctx context.Context, updates unversioned.Up
 		return nil, nil, err
 	}
 	// Determine the custom name based on whether we're updating specific packages or all
-	customName := "Upgrading all packages"
+	customName := "Installing security updates"
 	if updates != nil {
-		customName = fmt.Sprintf("Upgrading %d packages", len(updates))
+		customName = fmt.Sprintf("Installing security updates for %d packages", len(updates))
 	}
 
 	installed := imageStateCurrent.Run(
 		llb.Shlex(installCmd),
 		llb.WithProxy(utils.GetProxy()),
-		llb.WithCustomName(customName)).Root()
+		llb.WithCustomName(customName),
+	).Root()
 
 	// Validate no errors were encountered if updating all
 	if updates == nil && !ignoreErrors {

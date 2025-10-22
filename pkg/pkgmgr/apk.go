@@ -174,7 +174,8 @@ func (am *apkManager) upgradePackages(ctx context.Context, updates unversioned.U
 		checkUpgradable := `sh -c "apk list 2>/dev/null | grep -q "upgradable" || exit 1"`
 		apkUpdated = apkUpdated.Run(
 			llb.Shlex(checkUpgradable),
-			llb.WithCustomName("Checking for available updates")).Root()
+			llb.WithCustomName("Checking for available updates"),
+		).Root()
 	}
 
 	var apkInstalled llb.State

@@ -346,6 +346,7 @@ func (dm *dpkgManager) installUpdates(ctx context.Context, updates unversioned.U
 		llb.Shlex("apt-get update"),
 		llb.WithProxy(utils.GetProxy()),
 		llb.IgnoreCache,
+		llb.WithCustomName("Updating package database"),
 	).Root()
 
 	checkUpgradable := `sh -c "apt-get -s upgrade 2>/dev/null | grep -q "^Inst" || exit 1"`
