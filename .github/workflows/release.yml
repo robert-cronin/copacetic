@@ -127,4 +127,3 @@ jobs:
           image_owner="${{ github.repository_owner }}"
           docker buildx build --push --platform linux/amd64,linux/arm64 --build-arg copa_version=${tag} -t "ghcr.io/${image_owner}/copa-extension:v${tag}" ./copa-extension/container/copa-extension
 
-          
