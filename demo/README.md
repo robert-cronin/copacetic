@@ -41,10 +41,3 @@ Each demo has a matching cleanup script that removes the buildx instance, patche
 bash copa-demo-python-cleanup.sh
 ```
 
-## Recording
-
-To record a demo as an asciinema cast for the website:
-
-```bash
-asciinema rec --command "bash copa-demo-python.sh" ../website/static/casts/demo-python.cast
-```
