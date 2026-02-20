@@ -48,11 +48,11 @@ func getPackageBaseName(name string) string {
 }
 
 // getNpmTarballURL returns the npm registry tarball URL for a package.
-// Scoped packages like "@babel/core" use URL encoding: @babel%2fcore.
+// Scoped packages like "@babel/core" use URL encoding: @babel%2Fcore.
 func getNpmTarballURL(name, version string) string {
 	encodedName := name
 	if strings.HasPrefix(name, "@") {
-		encodedName = strings.Replace(name, "/", "%2f", 1)
+		encodedName = strings.Replace(name, "/", "%2F", 1)
 	}
 	return fmt.Sprintf("https://registry.npmjs.org/%s/-/%s-%s.tgz", encodedName, getPackageBaseName(name), version)
 }
