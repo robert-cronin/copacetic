@@ -690,7 +690,7 @@ fi
 func (r *Rebuilder) generateGoMod(buildInfo *BuildInfo, updates map[string]string) string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("module %s\n\n", buildInfo.ModulePath))
+	fmt.Fprintf(&sb, "module %s\n\n", buildInfo.ModulePath)
 
 	// Normalize Go version to major.minor format (strip patch version)
 	// e.g., "1.20.4" -> "1.20"
@@ -698,7 +698,7 @@ func (r *Rebuilder) generateGoMod(buildInfo *BuildInfo, updates map[string]strin
 	if parts := strings.Split(goVersion, "."); len(parts) >= 2 {
 		goVersion = parts[0] + "." + parts[1]
 	}
-	sb.WriteString(fmt.Sprintf("go %s\n\n", goVersion))
+	fmt.Fprintf(&sb, "go %s\n\n", goVersion)
 
 	if len(buildInfo.Dependencies) > 0 || len(updates) > 0 {
 		sb.WriteString("require (\n")
@@ -710,11 +710,11 @@ func (r *Rebuilder) generateGoMod(buildInfo *BuildInfo, updates map[string]strin
 			if version == "v0.0.0" || version == "(devel)" {
 				continue
 			}
-			sb.WriteString(fmt.Sprintf("\t%s %s\n", module, version))
+			fmt.Fprintf(&sb, "\t%s %s\n", module, version)
 		}
 
 		for module, version := range updates {
-			sb.WriteString(fmt.Sprintf("\t%s %s\n", module, normalizeVersion(version)))
+			fmt.Fprintf(&sb, "\t%s %s\n", module, normalizeVersion(version))
 		}
 
 		sb.WriteString(")\n")

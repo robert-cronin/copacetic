@@ -59,6 +59,7 @@ This command produces a build context with the patch diff layer and a Dockerfile
   copa generate -i alpine:3.18 -r scan.json --output-context patch.tar`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			// Check if stdout is a TTY when not writing to file
+			//nolint:gosec // File descriptors are always small non-negative values; overflow is not possible.
 			if ga.outputContext == "" && term.IsTerminal(int(os.Stdout.Fd())) {
 				return fmt.Errorf("refusing to write tar stream to terminal. Use --output-context to save to file or redirect stdout")
 			}
